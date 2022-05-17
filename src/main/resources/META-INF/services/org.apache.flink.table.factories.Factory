@@ -1,0 +1,2 @@
+scala.sql.table.socket.SocketDynamicTableFactory
+scala.sql.table.log.LogTableSinkFactory
