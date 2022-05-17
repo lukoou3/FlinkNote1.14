@@ -9,6 +9,7 @@ import org.apache.flink.table.connector.format.EncodingFormat
 import org.apache.flink.table.connector.sink.{DynamicTableSink, SinkFunctionProvider}
 import org.apache.flink.table.data.RowData
 import org.apache.flink.table.types.DataType
+import org.apache.flink.types.RowKind
 
 /**
  * 定义并行度。默认情况下，并行度由框架决定，和链在一起的上游 operator 一致。
@@ -20,8 +21,16 @@ class LogTableSink(
   val producedDataType: DataType,
   val parallelism: Optional[Integer]
 ) extends DynamicTableSink{
-  // 全部返回
-  override def getChangelogMode(requestedMode: ChangelogMode): ChangelogMode = requestedMode
+
+  override def getChangelogMode(requestedMode: ChangelogMode): ChangelogMode = {
+    // 全部返回
+    // requestedMode
+    // 不像看到before
+    ChangelogMode.newBuilder
+      .addContainedKind(RowKind.INSERT)
+      .addContainedKind(RowKind.UPDATE_AFTER)
+      .build
+  }
 
   override def getSinkRuntimeProvider(context: DynamicTableSink.Context): DynamicTableSink.SinkRuntimeProvider = {
     val serializer: SerializationSchema[RowData] = encodingFormat.createRuntimeEncoder(context, producedDataType)

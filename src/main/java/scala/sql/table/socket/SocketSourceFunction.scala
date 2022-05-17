@@ -3,7 +3,8 @@ package scala.sql.table.socket
 import java.net.{ConnectException, Socket}
 import java.nio.charset.StandardCharsets
 
-import org.apache.flink.api.common.serialization.DeserializationSchema
+import org.apache.flink.api.common.serialization.{DeserializationSchema, RuntimeContextInitializationContextAdapters}
+import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.functions.source.{RichSourceFunction, SourceFunction}
 
 import scala.io.Source
@@ -16,6 +17,11 @@ class SocketSourceFunction[T](
 ) extends RichSourceFunction[T] with Logging{
   var stop = false
   private var socket: Socket = _
+
+
+  override def open(parameters: Configuration): Unit = {
+    deserializer.open(RuntimeContextInitializationContextAdapters.deserializationAdapter(getRuntimeContext()))
+  }
 
   override def run(ctx: SourceFunction.SourceContext[T]): Unit = {
     logInfo(s"Connecting to $host:$port")
