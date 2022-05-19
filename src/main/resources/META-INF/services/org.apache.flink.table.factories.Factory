@@ -1,2 +1,3 @@
 scala.sql.table.socket.SocketDynamicTableFactory
 scala.sql.table.log.LogTableSinkFactory
+scala.sql.table.localfile.LocalFileTableFactory
