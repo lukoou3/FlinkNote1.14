@@ -1,4 +1,4 @@
-package scala.sql.table.log
+package scala.connector.log
 
 import java.nio.charset.StandardCharsets
 

@@ -1,4 +1,4 @@
-package scala.sql.table.localfile
+package scala.connector.localfile
 
 import org.apache.flink.api.common.serialization.DeserializationSchema
 import org.apache.flink.streaming.api.functions.source.SourceFunction
@@ -8,7 +8,7 @@ import org.apache.flink.table.connector.source.{DynamicTableSource, ScanTableSou
 import org.apache.flink.table.data.RowData
 import org.apache.flink.table.types.DataType
 
-import scala.sql.table.socket.SocketSourceFunction
+import scala.connector.socket.SocketSourceFunction
 
 // LocalFileTableFactory
 class LocalFileTableSource(

@@ -1,4 +1,4 @@
-package scala.sql.table.test
+package scala.connector.test
 
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.scala._
@@ -10,7 +10,7 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 
 import scala.serialization.SerializationSchemaLogWrapper
-import scala.sql.table.log.LogSinkFunction
+import scala.connector.log.LogSinkFunction
 import scala.sql.utils.TableImplicits._
 
 class TableSinkJsonSuite extends AnyFunSuite with BeforeAndAfterAll{

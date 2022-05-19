@@ -1,4 +1,4 @@
-package scala.sql.table.localfile
+package scala.connector.localfile
 
 import java.util
 

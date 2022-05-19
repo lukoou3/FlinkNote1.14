@@ -1,4 +1,4 @@
-package scala.sql.table.test
+package scala.connector.test
 
 import java.nio.charset.StandardCharsets
 import java.util
@@ -20,7 +20,7 @@ import org.apache.flink.types.Row
 
 import scala.collection.JavaConverters._
 import scala.serialization.SerializationSchemaLogWrapper
-import scala.sql.table.log.LogSinkFunction
+import scala.connector.log.LogSinkFunction
 
 object RowLogSinkFunctionTest {
 

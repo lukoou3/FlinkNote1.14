@@ -1,4 +1,4 @@
-package scala.sql.table.log
+package scala.connector.localfile
 
 import java.util.Optional
 
@@ -11,18 +11,12 @@ import org.apache.flink.table.data.RowData
 import org.apache.flink.table.types.DataType
 import org.apache.flink.types.RowKind
 
-/**
- * 定义并行度。默认情况下，并行度由框架决定，和链在一起的上游 operator 一致。
- * 认为并行度是2，上游是mysocket，并行度是1，LogTableSink默认并行度是1，可以配置为2
- */
-class LogTableSink(
-  val logLevel: String,
+class LocalFileTableSink(
+  path: String,
   val encodingFormat: EncodingFormat[SerializationSchema[RowData]],
-  val producedDataType: DataType,
-  val parallelism: Optional[Integer]
+  val producedDataType: DataType
 ) extends DynamicTableSink{
-
-  override def getChangelogMode(requestedMode: ChangelogMode): ChangelogMode = {
+  def getChangelogMode(changelogMode: ChangelogMode): ChangelogMode = {
     // 全部返回
     // requestedMode
     // 不像看到before
@@ -32,19 +26,19 @@ class LogTableSink(
       .build
   }
 
-  override def getSinkRuntimeProvider(context: DynamicTableSink.Context): DynamicTableSink.SinkRuntimeProvider = {
+  def getSinkRuntimeProvider(context: DynamicTableSink.Context): DynamicTableSink.SinkRuntimeProvider = {
     val serializer: SerializationSchema[RowData] = encodingFormat.createRuntimeEncoder(context, producedDataType)
 
-    val func = new LogSinkFunction[RowData](logLevel, serializer)
+    val func = new LocalFileSinkFunction[RowData](path, serializer)
 
     new SinkFunctionProvider {
       override def createSinkFunction(): SinkFunction[RowData] = func
 
-      override def getParallelism: Optional[Integer] = parallelism
+      override def getParallelism: Optional[Integer] = Optional.of(1)
     }
   }
 
-  override def copy(): DynamicTableSink = new LogTableSink(logLevel, encodingFormat, producedDataType, parallelism)
+  def copy(): DynamicTableSink = new LocalFileTableSink(path, encodingFormat, producedDataType)
 
-  override def asSummaryString(): String = "log-sink"
+  def asSummaryString(): String = "LocalFileSink"
 }

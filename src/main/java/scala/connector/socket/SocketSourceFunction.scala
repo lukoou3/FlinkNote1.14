@@ -1,4 +1,4 @@
-package scala.sql.table.socket
+package scala.connector.socket
 
 import java.net.{ConnectException, Socket}
 import java.nio.charset.StandardCharsets

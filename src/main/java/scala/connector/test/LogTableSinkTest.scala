@@ -1,17 +1,11 @@
-package scala.sql.table.test
+package scala.connector.test
 
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.table.api.EnvironmentSettings
 import org.apache.flink.table.api.bridge.scala._
-import org.apache.flink.table.data.RowData
 
-import scala.sql.utils.TableImplicits._
-
-import scala.sql.table.localfile.LocalFileSinkFunction
-
-object LocalFileSinkFunctionTest {
-
+object LogTableSinkTest {
   def main(args: Array[String]): Unit = {
     val conf = new Configuration()
     val env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf)
@@ -47,21 +41,33 @@ object LocalFileSinkFunctionTest {
     tEnv.executeSql(sql)
 
     sql = """
+    CREATE TABLE tmp_tb2 (
+      id int,
+      name string,
+      age int
+    ) WITH (
+      'connector' = 'mylog',
+      'log-level' = 'warn',
+      'sink.parallelism' = '2',
+      'format' = 'json'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    insert into tmp_tb2
     select
         id,
         name,
         age
     from tmp_tb1
     """
-    val rstTable = tEnv.sqlQuery(sql)
+    tEnv.executeSql(sql)
 
-    rstTable.toAppendStream[RowData].addSink(new LocalFileSinkFunction(
-      "D:\\flink-fileSink\\aaa\\aaa.txt",
-      rstTable.getJsonRowDataSerializationSchema
-    )).setParallelism(1)
+    println("*" * 50)
 
-
-    env.execute("LocalFileSinkFunctionTest")
+    // 阻塞
+    //env.execute("SocketDynamicTableTest")
+    println("end:" + "*" * 50)
   }
-
 }

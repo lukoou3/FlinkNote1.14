@@ -1,4 +1,4 @@
-package scala.sql.table.socket
+package scala.connector.socket
 
 import org.apache.flink.api.common.serialization.DeserializationSchema
 import org.apache.flink.streaming.api.functions.source.SourceFunction

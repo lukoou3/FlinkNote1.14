@@ -1,4 +1,4 @@
-package scala.sql.table.test
+package scala.connector.test
 
 import java.nio.charset.StandardCharsets
 

@@ -1,4 +1,4 @@
-package scala.sql.table.socket
+package scala.connector.socket
 
 import java.util
 

@@ -1,12 +1,17 @@
-package scala.sql.table.test
+package scala.connector.test
 
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.table.api.EnvironmentSettings
 import org.apache.flink.table.api.bridge.scala._
-import org.apache.flink.types.Row
+import org.apache.flink.table.data.RowData
 
-object SocketDynamicTableTest {
+import scala.sql.utils.TableImplicits._
+import scala.connector.localfile.LocalFileSinkFunction
+import scala.serialization.BinarySerializationSchema
+import scala.stream.func.MapSerializeFunc
+
+object MapSerializeFuncTest {
 
   def main(args: Array[String]): Unit = {
     val conf = new Configuration()
@@ -21,6 +26,7 @@ object SocketDynamicTableTest {
     /**
      * {"id":"1","name":"罗隐32","age":1300}
      * {"id":"1", "name":"罗隐", "age":30}
+     * {"id":"2", "name":"刘禹锡", "age":30}
      * 需要先启动`nc -lk 9999`，用来发送数据，windows使用`nc -l -p 9999`命令
      */
     var sql = """
@@ -51,15 +57,12 @@ object SocketDynamicTableTest {
     """
     val rstTable = tEnv.sqlQuery(sql)
 
-    //rstTable.toAppendStream[Row].addSink(println(_))
+    rstTable.toAppendStream[RowData].map(new MapSerializeFunc(rstTable.getJsonRowDataSerializationSchema)).addSink(new LocalFileSinkFunction(
+      "F:\\flink-fileSink\\aaa\\aaa.txt",
+      new BinarySerializationSchema
+    )).setParallelism(1)
 
-    // 阻塞
-    rstTable.execute().print()
-    println("*" * 50)
-
-    // 阻塞
-    env.execute("SocketDynamicTableTest")
-    println("end:" + "*" * 50)
+    env.execute("MapSerializeFuncTest")
   }
 
 }
