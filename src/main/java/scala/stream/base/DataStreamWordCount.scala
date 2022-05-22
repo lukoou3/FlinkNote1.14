@@ -10,6 +10,7 @@ object DataStreamWordCount {
 
   def main(args: Array[String]): Unit = {
     val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
+
     // 需要先启动`nc -lk 9999`，用来发送数据，windows使用`nc -l -p 9999`命令
     val text: DataStream[String] = env.socketTextStream("localhost", 9999)
     println("Source parallelism:" + text.parallelism)
