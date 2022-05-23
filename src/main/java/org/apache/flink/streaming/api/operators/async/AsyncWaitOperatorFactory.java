@@ -22,6 +22,10 @@ import org.apache.flink.streaming.api.functions.async.AsyncFunction;
 import org.apache.flink.streaming.api.operators.*;
 
 /**
+ * 继承YieldingOperatorFactory，就能调用getMailboxExecutor()
+ * 当上一个chain包含source时，会另起一个chain。
+ * org.apache.flink.streaming.api.graph.StreamingJobGraphGenerator#areOperatorsChainable
+ *
  * The factory of {@link AsyncWaitOperator}.
  *
  * @param <OUT> The output type of the operator

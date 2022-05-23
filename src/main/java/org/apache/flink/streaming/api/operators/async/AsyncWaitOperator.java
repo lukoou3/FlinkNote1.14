@@ -133,21 +133,25 @@ public class AsyncWaitOperator<IN, OUT>
             Output<StreamRecord<OUT>> output) {
         super.setup(containingTask, config, output);
 
+        // 序列化StreamElement
         this.inStreamElementSerializer =
                 new StreamElementSerializer<>(
                         getOperatorConfig().<IN>getTypeSerializerIn1(getUserCodeClassloader()));
 
         switch (outputMode) {
             case ORDERED:
+                // 有序
                 queue = new OrderedStreamElementQueue<>(capacity);
                 break;
             case UNORDERED:
+                // 无序
                 queue = new UnorderedStreamElementQueue<>(capacity);
                 break;
             default:
                 throw new IllegalStateException("Unknown async mode: " + outputMode + '.');
         }
 
+        // 可以在StreamRecord设置新的timestamp
         this.timestampedCollector = new TimestampedCollector<>(super.output);
     }
 
