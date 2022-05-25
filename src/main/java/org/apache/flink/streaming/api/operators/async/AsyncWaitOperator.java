@@ -159,10 +159,12 @@ public class AsyncWaitOperator<IN, OUT>
     public void open() throws Exception {
         super.open();
 
+        // 如果开启就序列化复制对象
         this.isObjectReuseEnabled = getExecutionConfig().isObjectReuseEnabled();
 
         if (recoveredStreamElements != null) {
             for (StreamElement element : recoveredStreamElements.get()) {
+                // 不仅仅是只考虑元素类型
                 if (element.isRecord()) {
                     processElement(element.<IN>asRecord());
                 } else if (element.isWatermark()) {
@@ -350,6 +352,7 @@ public class AsyncWaitOperator<IN, OUT>
                 return;
             }
 
+            // 完成后的回调
             processInMailbox(results);
         }
 
