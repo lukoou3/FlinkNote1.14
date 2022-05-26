@@ -70,5 +70,5 @@ class LocalFileTableFactory extends DynamicTableSourceFactory with DynamicTableS
 
 object LocalFileTableFactory{
   val PATH = ConfigOptions.key("path").stringType.noDefaultValue
-  val SOURCE_SLEEP  = ConfigOptions.key("source.sleep").longType().defaultValue(10)
+  val SOURCE_SLEEP  = ConfigOptions.key("source.sleep").longType().defaultValue(10L)
 }
