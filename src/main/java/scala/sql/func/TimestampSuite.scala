@@ -52,14 +52,15 @@ class TimestampSuite extends AnyFunSuite with BeforeAndAfterAll{
     tEnv.executeSql(sql)
   }
 
-  /**
-   * org.apache.flink.table.utils.PrintUtils#formatTimestampField
-   */
   test("current_date/current_timestamp"){
     val sql = """
     select
         current_date date1,
         current_timestamp timestamp1,
+        localTimestamp localTimestamp1,
+        -- 都不能转
+        -- cast(current_timestamp as bigint) timestamp2,
+        -- cast(localTimestamp as bigint) localTimestamp2,
         dt
     from tmp_tb
     """
@@ -68,7 +69,7 @@ class TimestampSuite extends AnyFunSuite with BeforeAndAfterAll{
 
     /**
      * TIMESTAMP_LTZ(3)
-     * org.apache.flink.table.data.TimestampData
+     * [[org.apache.flink.table.data.TimestampData]]
      *
      */
     rstTable.toAppendStream[RowData].addSink{ data =>
@@ -76,8 +77,12 @@ class TimestampSuite extends AnyFunSuite with BeforeAndAfterAll{
     }
 
     /**
-     * 新的api
+     * 新的api:Row
+     * TIMESTAMP_LTZ(3)
+     * java.time.Instant
      * [[org.apache.flink.table.runtime.operators.sink.OutputConversionOperator]]
+     * TIMESTAMP(3)
+     * LocalDateTime
      */
     rstTable.toDataStream.addSink{ data =>
       println(data)
@@ -90,6 +95,10 @@ class TimestampSuite extends AnyFunSuite with BeforeAndAfterAll{
      */
     //rstTable.toAppendStream[Row].addSink{ data =>  println(data) }
 
+    /**
+     * [[org.apache.flink.table.utils.PrintUtils#formatTimestampField]]
+     * timestampToString(instant.atZone(sessionTimeZone).toLocalDateTime(), getPrecision(fieldType))
+     */
     // rstTable.execute().print()
 
     rstTable.toAppendStream[RowData].addSink(
