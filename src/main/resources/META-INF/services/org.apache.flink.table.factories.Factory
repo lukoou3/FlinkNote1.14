@@ -1,3 +1,4 @@
 scala.connector.socket.SocketDynamicTableFactory
 scala.connector.log.LogTableSinkFactory
 scala.connector.localfile.LocalFileTableFactory
+scala.connector.faker.FlinkFakerTableSourceFactory
