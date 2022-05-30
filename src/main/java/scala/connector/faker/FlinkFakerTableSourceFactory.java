@@ -73,6 +73,7 @@ public class FlinkFakerTableSourceFactory implements DynamicTableSourceFactory {
     Configuration options = new Configuration();
     context.getCatalogTable().getOptions().forEach(options::setString);
 
+    // 物理列, 排除到计算列, 计算列flink实现
     TableSchema schema = TableSchemaUtils.getPhysicalSchema(catalogTable.getSchema());
     Float[] fieldNullRates = new Float[schema.getFieldCount()];
     String[][] fieldExpressions = new String[schema.getFieldCount()][];

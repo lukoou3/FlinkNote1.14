@@ -30,6 +30,7 @@ public class FlinkFakerTableSource implements ScanTableSource, LookupTableSource
     this.fieldNullRates = fieldNullRates;
     this.fieldCollectionLengths = fieldCollectionLengths;
     this.schema = schema;
+    // LogicalType
     types =
         Arrays.stream(schema.getFieldDataTypes())
             .map(DataType::getLogicalType)
@@ -75,6 +76,17 @@ public class FlinkFakerTableSource implements ScanTableSource, LookupTableSource
 
   @Override
   public LookupRuntimeProvider getLookupRuntimeProvider(LookupContext context) {
+    /**
+     * context.getKeys()返回 int[][]，代表关联key的位置, [最外部列的位置, row类型关联内部属性的位置]
+     * 大多数情况下不支持row的属性进行关联, 这种情况keys实际就是一维数组
+     *    例如表的类型 a int, b int, c int, d int
+     *    关联的条件是a, 则keys = [[0]]
+     *    关联的条件是a和b, 则keys = [[0], [1]]
+     *
+     *    例如表的类型 i INT, s STRING, r ROW < i2 INT, s2 STRING >
+     *    关联的条件是i和s2, 则keys = [[0], [2, 1]]
+     *
+     */
     return TableFunctionProvider.of(
         new FlinkFakerLookupFunction(
             fieldExpressions, fieldNullRates, fieldCollectionLengths, types, context.getKeys()));

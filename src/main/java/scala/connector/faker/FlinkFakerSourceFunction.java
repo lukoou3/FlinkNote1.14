@@ -59,6 +59,7 @@ public class FlinkFakerSourceFunction extends RichParallelSourceFunction<RowData
     while (!cancelled && rowsSoFar < rowsForSubtask) {
       for (long i = 0; i < rowsPerSecondForSubtask; i++) {
         if (!cancelled && rowsSoFar < rowsForSubtask) {
+          // 生成row
           RowData row = generateNextRow();
           sourceContext.collect(row);
           rowsSoFar++;
@@ -71,6 +72,12 @@ public class FlinkFakerSourceFunction extends RichParallelSourceFunction<RowData
   }
 
   private long getRowsPerSecondForSubTask() {
+    /***
+     * 计算每秒生成的记录数
+     * numSubtasks = getNumberOfParallelSubtasks获取这个subtask总的并行度
+     * indexOfThisSubtask = getIndexOfThisSubtask获取这个subtask的索引
+     * rowsPerSecond / numSubtasks = 单个subtask生成记录数的速率
+     */
     int numSubtasks = getRuntimeContext().getNumberOfParallelSubtasks();
     int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
     long baseRowsPerSecondPerSubtask = rowsPerSecond / numSubtasks;
@@ -112,6 +119,7 @@ public class FlinkFakerSourceFunction extends RichParallelSourceFunction<RowData
           }
         }
 
+        // 和LookupFunction中一样，把生成的string类型的数据转换成flink sql内部类型，设置row
         row.setField(
             i, FakerUtils.stringValueToType(values.toArray(new String[values.size()]), types[i]));
       } else {

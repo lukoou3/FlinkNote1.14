@@ -34,6 +34,7 @@ public class FlinkFakerLookupFunction extends TableFunction<RowData> {
 
     keyIndeces = new ArrayList<>();
     for (int i = 0; i < keys.length; i++) {
+      // 不支持嵌套的row类型, keys实际就是一维数组
       // we don't support nested rows for now, so this is actually one-dimensional
       keyIndeces.add(keys[i][0]);
     }
@@ -52,11 +53,13 @@ public class FlinkFakerLookupFunction extends TableFunction<RowData> {
     GenericRowData row = new GenericRowData(fieldExpressions.length);
     int keyCount = 0;
     for (int i = 0; i < fieldExpressions.length; i++) {
+      // 如果是关联的key, 直接赋值就行
       if (keyIndeces.contains(i)) {
         row.setField(i, keys[keyCount]);
         keyCount++;
       } else {
         float fieldNullRate = fieldNullRates[i];
+        // 这里根据概率确定是否关联到数据, 生成的数据都是随机的
         if (rand.nextFloat() > fieldNullRate) {
           List<String> values = new ArrayList<>();
           for (int j = 0; j < fieldCollectionLengths[i]; j++) {
@@ -65,6 +68,7 @@ public class FlinkFakerLookupFunction extends TableFunction<RowData> {
               values.add(faker.expression(fieldExpressions[i][k]));
             }
           }
+          // 把生成的string类型的数据转换成flink sql内部类型，设置row
           row.setField(
               i, FakerUtils.stringValueToType(values.toArray(new String[values.size()]), types[i]));
         } else {
