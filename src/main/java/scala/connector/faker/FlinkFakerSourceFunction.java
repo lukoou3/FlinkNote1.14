@@ -25,6 +25,7 @@ public class FlinkFakerSourceFunction extends RichParallelSourceFunction<RowData
   private LogicalType[] types;
   private long rowsPerSecond;
   private long numberOfRows;
+  private long sleepPerRow;
 
   public FlinkFakerSourceFunction(
       String[][] fieldExpressions,
@@ -32,17 +33,20 @@ public class FlinkFakerSourceFunction extends RichParallelSourceFunction<RowData
       Integer[] fieldCollectionLengths,
       LogicalType[] types,
       long rowsPerSecond,
-      long numberOfRows) {
+      long numberOfRows,
+      long sleepPerRow) {
     this.fieldExpressions = fieldExpressions;
     this.fieldNullRates = fieldNullRates;
     this.fieldCollectionLengths = fieldCollectionLengths;
     this.types = types;
     this.rowsPerSecond = rowsPerSecond;
     this.numberOfRows = numberOfRows;
+    this.sleepPerRow = sleepPerRow;
   }
 
   @Override
   public void open(final Configuration parameters) throws Exception {
+    //System.out.println("FlinkFakerSourceFunction open");
     super.open(parameters);
     faker = new Faker();
     rand = new Random();
@@ -63,11 +67,17 @@ public class FlinkFakerSourceFunction extends RichParallelSourceFunction<RowData
           RowData row = generateNextRow();
           sourceContext.collect(row);
           rowsSoFar++;
+          if(sleepPerRow > 0){
+            Thread.sleep(sleepPerRow);
+          }
         }
       }
-      nextReadTime += 1000;
-      long toWaitMs = Math.max(0, nextReadTime - System.currentTimeMillis());
-      Thread.sleep(toWaitMs);
+
+      if(sleepPerRow <= 0){
+        nextReadTime += 1000;
+        long toWaitMs = Math.max(0, nextReadTime - System.currentTimeMillis());
+        Thread.sleep(toWaitMs);
+      }
     }
   }
 

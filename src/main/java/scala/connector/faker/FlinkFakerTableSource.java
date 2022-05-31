@@ -18,6 +18,7 @@ public class FlinkFakerTableSource implements ScanTableSource, LookupTableSource
   private final LogicalType[] types;
   private long rowsPerSecond;
   private long numberOfRows;
+  private long sleepPerRow;
 
   public FlinkFakerTableSource(
       String[][] fieldExpressions,
@@ -25,7 +26,8 @@ public class FlinkFakerTableSource implements ScanTableSource, LookupTableSource
       Integer[] fieldCollectionLengths,
       TableSchema schema,
       long rowsPerSecond,
-      long numberOfRows) {
+      long numberOfRows,
+      long sleepPerRow) {
     this.fieldExpressions = fieldExpressions;
     this.fieldNullRates = fieldNullRates;
     this.fieldCollectionLengths = fieldCollectionLengths;
@@ -37,6 +39,7 @@ public class FlinkFakerTableSource implements ScanTableSource, LookupTableSource
             .toArray(LogicalType[]::new);
     this.rowsPerSecond = rowsPerSecond;
     this.numberOfRows = numberOfRows;
+    this.sleepPerRow = sleepPerRow;
   }
 
   @Override
@@ -46,6 +49,7 @@ public class FlinkFakerTableSource implements ScanTableSource, LookupTableSource
 
   @Override
   public ScanRuntimeProvider getScanRuntimeProvider(final ScanContext scanContext) {
+    //System.out.println("getScanRuntimeProvider");
     boolean isBounded = numberOfRows != UNLIMITED_ROWS;
     return SourceFunctionProvider.of(
         new FlinkFakerSourceFunction(
@@ -54,7 +58,8 @@ public class FlinkFakerTableSource implements ScanTableSource, LookupTableSource
             fieldCollectionLengths,
             types,
             rowsPerSecond,
-            numberOfRows),
+            numberOfRows,
+                sleepPerRow),
         isBounded);
   }
 
@@ -66,7 +71,7 @@ public class FlinkFakerTableSource implements ScanTableSource, LookupTableSource
         fieldCollectionLengths,
         schema,
         rowsPerSecond,
-        numberOfRows);
+        numberOfRows, sleepPerRow);
   }
 
   @Override

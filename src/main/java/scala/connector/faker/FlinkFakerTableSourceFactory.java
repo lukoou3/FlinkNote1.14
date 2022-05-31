@@ -42,6 +42,12 @@ public class FlinkFakerTableSourceFactory implements DynamicTableSourceFactory {
           .defaultValue(UNLIMITED_ROWS)
           .withDescription("Total number of rows to emit. By default, the source is unbounded.");
 
+  public static final ConfigOption<Long> SLEEP_PER_ROW =
+          key("sleep-per-row")
+                  .longType()
+                  .defaultValue(0L)
+                  .withDescription("sleep per row to control the emit rate.");
+
   public static final List<LogicalTypeRoot> SUPPORTED_ROOT_TYPES =
       Arrays.asList(
           LogicalTypeRoot.DOUBLE,
@@ -94,7 +100,9 @@ public class FlinkFakerTableSourceFactory implements DynamicTableSourceFactory {
         fieldCollectionLengths,
         schema,
         options.get(ROWS_PER_SECOND),
-        options.get(NUMBER_OF_ROWS));
+        options.get(NUMBER_OF_ROWS),
+        options.get(SLEEP_PER_ROW)
+    );
   }
 
   private Integer readAndValidateCollectionLength(
@@ -213,6 +221,7 @@ public class FlinkFakerTableSourceFactory implements DynamicTableSourceFactory {
     Set<ConfigOption<?>> options = new HashSet<>();
     options.add(ROWS_PER_SECOND);
     options.add(NUMBER_OF_ROWS);
+    options.add(SLEEP_PER_ROW);
     return options;
   }
 }

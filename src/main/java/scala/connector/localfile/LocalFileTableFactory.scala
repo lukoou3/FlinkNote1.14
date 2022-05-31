@@ -31,8 +31,9 @@ class LocalFileTableFactory extends DynamicTableSourceFactory with DynamicTableS
 
     val path = config.get(PATH)
     val sleep = config.get(SOURCE_SLEEP)
+    val numberOfRowsForSubtask = config.get(NUMBER_OF_ROWS)
 
-    new LocalFileTableSource(path, sleep, decodingFormat, producedDataType)
+    new LocalFileTableSource(path, sleep, numberOfRowsForSubtask, decodingFormat, producedDataType)
   }
 
   def createDynamicTableSink(context: DynamicTableFactory.Context): DynamicTableSink = {
@@ -63,6 +64,7 @@ class LocalFileTableFactory extends DynamicTableSourceFactory with DynamicTableS
   override def optionalOptions(): util.Set[ConfigOption[_]] = {
     val optionalOptions = new util.HashSet[ConfigOption[_]]
     optionalOptions.add(SOURCE_SLEEP)
+    optionalOptions.add(NUMBER_OF_ROWS)
     optionalOptions
   }
 
@@ -71,4 +73,5 @@ class LocalFileTableFactory extends DynamicTableSourceFactory with DynamicTableS
 object LocalFileTableFactory{
   val PATH = ConfigOptions.key("path").stringType.noDefaultValue
   val SOURCE_SLEEP  = ConfigOptions.key("source.sleep").longType().defaultValue(10L)
+  val NUMBER_OF_ROWS  = ConfigOptions.key("number-of-rows-subtask").longType().defaultValue(Long.MaxValue)
 }

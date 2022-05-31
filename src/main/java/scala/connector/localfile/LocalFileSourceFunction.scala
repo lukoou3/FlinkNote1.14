@@ -13,6 +13,7 @@ import scala.log.Logging
 class LocalFileSourceFunction[T](
   filePath: String,
   sleep: Long = 10,
+  numberOfRowsForSubtask: Long = Long.MaxValue,
   deserializer: DeserializationSchema[T]
 ) extends RichParallelSourceFunction[T] with Logging {
   var stop = false
@@ -28,8 +29,9 @@ class LocalFileSourceFunction[T](
   override def run(ctx: SourceFunction.SourceContext[T]): Unit = {
     var i = 0
     val step = 1
+    var rows = 0
 
-    while (!stop) {
+    while (!stop && rows < numberOfRowsForSubtask) {
       if (i >= lineBytes.size) {
         Thread.sleep(100000)
         i = 0
@@ -37,6 +39,7 @@ class LocalFileSourceFunction[T](
 
       val data = deserializer.deserialize(lineBytes(i))
       ctx.collect(data)
+      rows += 1
 
       i += step
 
