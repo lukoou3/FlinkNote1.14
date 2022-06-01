@@ -3,6 +3,8 @@ package scala.connector.faker;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Locale;
@@ -46,7 +48,10 @@ public class FakerUtils {
       case TIME_WITHOUT_TIME_ZONE:
       case TIMESTAMP_WITHOUT_TIME_ZONE:
       case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
-        return TimestampData.fromInstant(Instant.from(formatter.parse(value)));
+        LocalDateTime localDateTime = LocalDateTime.parse(value, formatter);
+        long ts = localDateTime.toEpochSecond(ZoneOffset.of("+8")) * 1000;
+        return TimestampData.fromEpochMillis(ts);
+        // return TimestampData.fromInstant(Instant.from(formatter.parse(value)));
         //        break;
         //              case INTERVAL_YEAR_MONTH:
         //        break;
