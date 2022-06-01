@@ -19,17 +19,22 @@ class LogTableSink(
   val logLevel: String,
   val encodingFormat: EncodingFormat[SerializationSchema[RowData]],
   val producedDataType: DataType,
-  val parallelism: Optional[Integer]
+  val parallelism: Optional[Integer],
+  val insertOnly: Boolean // 用于校验表结果的模式
 ) extends DynamicTableSink{
 
   override def getChangelogMode(requestedMode: ChangelogMode): ChangelogMode = {
-    // 全部返回
-    // requestedMode
-    // 不像看到before
-    ChangelogMode.newBuilder
-      .addContainedKind(RowKind.INSERT)
-      .addContainedKind(RowKind.UPDATE_AFTER)
-      .build
+    if(insertOnly){
+      ChangelogMode.insertOnly
+    }else{
+      // 全部返回
+      // requestedMode
+      // 不像看到before
+      ChangelogMode.newBuilder
+        .addContainedKind(RowKind.INSERT)
+        .addContainedKind(RowKind.UPDATE_AFTER)
+        .build
+    }
   }
 
   override def getSinkRuntimeProvider(context: DynamicTableSink.Context): DynamicTableSink.SinkRuntimeProvider = {
@@ -44,7 +49,7 @@ class LogTableSink(
     }
   }
 
-  override def copy(): DynamicTableSink = new LogTableSink(logLevel, encodingFormat, producedDataType, parallelism)
+  override def copy(): DynamicTableSink = new LogTableSink(logLevel, encodingFormat, producedDataType, parallelism, insertOnly)
 
   override def asSummaryString(): String = "log-sink"
 }

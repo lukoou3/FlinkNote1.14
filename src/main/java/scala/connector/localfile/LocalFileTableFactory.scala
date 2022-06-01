@@ -49,7 +49,7 @@ class LocalFileTableFactory extends DynamicTableSourceFactory with DynamicTableS
     //val physicalDataType = context.getCatalogTable().getSchema().toPhysicalRowDataType()
     val physicalDataType = context.getCatalogTable().getResolvedSchema().toPhysicalRowDataType()
 
-    new LocalFileTableSink(config.get(PATH), encodingFormat, physicalDataType)
+    new LocalFileTableSink(config.get(PATH), encodingFormat, physicalDataType, config.get(INSERT_ONLY))
   }
 
   def factoryIdentifier(): String = "mylocalfile"
@@ -65,6 +65,7 @@ class LocalFileTableFactory extends DynamicTableSourceFactory with DynamicTableS
     val optionalOptions = new util.HashSet[ConfigOption[_]]
     optionalOptions.add(SOURCE_SLEEP)
     optionalOptions.add(NUMBER_OF_ROWS)
+    optionalOptions.add(INSERT_ONLY)
     optionalOptions
   }
 
@@ -74,4 +75,5 @@ object LocalFileTableFactory{
   val PATH = ConfigOptions.key("path").stringType.noDefaultValue
   val SOURCE_SLEEP  = ConfigOptions.key("source.sleep").longType().defaultValue(10L)
   val NUMBER_OF_ROWS  = ConfigOptions.key("number-of-rows-subtask").longType().defaultValue(Long.MaxValue)
+  val INSERT_ONLY = ConfigOptions.key("insert-only").booleanType().defaultValue(true)
 }

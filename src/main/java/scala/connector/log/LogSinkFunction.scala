@@ -24,6 +24,7 @@ class LogSinkFunction[T: ClassTag](
       case "warn" => x => logWarning(x)
       case "info" => x => logInfo(x)
       case "debug" => x => logDebug(x)
+      case "print" => x => println(x)
     }
     getOp = implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]] match {
       case x if x == classOf[RowData] => x => x.asInstanceOf[RowData].getRowKind.toString

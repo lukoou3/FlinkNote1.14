@@ -28,7 +28,8 @@ class LogTableSinkFactory extends DynamicTableSinkFactory{
       config.get(LOG_LEVEL),
       encodingFormat,
       physicalDataType,
-      config.getOptional(FactoryUtil.SINK_PARALLELISM)
+      config.getOptional(FactoryUtil.SINK_PARALLELISM),
+      config.get(INSERT_ONLY)
     )
   }
 
@@ -44,10 +45,12 @@ class LogTableSinkFactory extends DynamicTableSinkFactory{
   override def optionalOptions(): util.Set[ConfigOption[_]] = {
     val optionalOptions = new util.HashSet[ConfigOption[_]]
     optionalOptions.add(FactoryUtil.SINK_PARALLELISM)
+    optionalOptions.add(INSERT_ONLY)
     optionalOptions
   }
 }
 
 object LogTableSinkFactory{
   val LOG_LEVEL = ConfigOptions.key("log-level").stringType.noDefaultValue
+  val INSERT_ONLY = ConfigOptions.key("insert-only").booleanType().defaultValue(false)
 }
