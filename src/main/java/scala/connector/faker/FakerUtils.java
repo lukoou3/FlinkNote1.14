@@ -4,8 +4,11 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -18,6 +21,14 @@ public class FakerUtils {
 
   private static DateTimeFormatter formatter =
       DateTimeFormatter.ofPattern(FAKER_DATETIME_FORMAT, new Locale("us"));
+
+  private static final DateTimeFormatter FORMATTER =
+          new DateTimeFormatterBuilder()
+                  // Pattern was taken from java.sql.Timestamp#toString
+                  //.appendPattern("uuuu-MM-dd HH:mm:ss")
+                  .appendPattern("yyyy-MM-dd HH:mm:ss")
+                  .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+                  .toFormatter(Locale.US);
 
   static Object stringValueToType(String[] stringArray, LogicalType logicalType) {
     String value = stringArray.length > 0 ? stringArray[0] : "";
@@ -48,9 +59,11 @@ public class FakerUtils {
       case TIME_WITHOUT_TIME_ZONE:
       case TIMESTAMP_WITHOUT_TIME_ZONE:
       case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
-        LocalDateTime localDateTime = LocalDateTime.parse(value, formatter);
-        long ts = localDateTime.toEpochSecond(ZoneOffset.of("+8")) * 1000;
-        return TimestampData.fromEpochMillis(ts);
+        return TimestampData.fromInstant(
+                Instant.from(FORMATTER.withZone(ZoneId.systemDefault()).parse(value)));
+        //LocalDateTime localDateTime = LocalDateTime.parse(value, formatter);
+        //long ts = localDateTime.toEpochSecond(ZoneOffset.of("+8")) * 1000;
+        //return TimestampData.fromEpochMillis(ts);
         // return TimestampData.fromInstant(Instant.from(formatter.parse(value)));
         //        break;
         //              case INTERVAL_YEAR_MONTH:

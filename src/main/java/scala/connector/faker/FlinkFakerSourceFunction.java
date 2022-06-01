@@ -2,7 +2,7 @@ package scala.connector.faker;
 
 import static scala.connector.faker.FlinkFakerTableSourceFactory.UNLIMITED_ROWS;
 
-import com.github.javafaker.Faker;
+import net.datafaker.Faker;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;

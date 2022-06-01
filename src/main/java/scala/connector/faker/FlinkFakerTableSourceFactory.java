@@ -2,7 +2,7 @@ package scala.connector.faker;
 
 import static org.apache.flink.configuration.ConfigOptions.key;
 
-import com.github.javafaker.Faker;
+import net.datafaker.Faker;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
