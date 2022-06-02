@@ -50,7 +50,8 @@ public class FlinkFakerTableSource implements ScanTableSource, LookupTableSource
   @Override
   public ScanRuntimeProvider getScanRuntimeProvider(final ScanContext scanContext) {
     //System.out.println("getScanRuntimeProvider");
-    boolean isBounded = numberOfRows != UNLIMITED_ROWS;
+    //boolean isBounded = numberOfRows != UNLIMITED_ROWS;
+    boolean isBounded = false;
     return SourceFunctionProvider.of(
         new FlinkFakerSourceFunction(
             fieldExpressions,

@@ -49,7 +49,8 @@ public class FakerUtils {
       case INTEGER:
         return Integer.parseInt(value);
       case BIGINT:
-        return new BigInteger(value);
+        return Long.parseLong(value);
+        //return new BigInteger(value);
       case FLOAT:
         return Float.parseFloat(value);
       case DOUBLE:
