@@ -72,12 +72,27 @@ public class FakerUtils {
         //      case INTERVAL_DAY_TIME:
         //        break;
       case ARRAY:
-        Object[] arrayElements = new Object[stringArray.length];
-        for (int i = 0; i < stringArray.length; i++)
-          arrayElements[i] =
-              (stringValueToType(
-                  new String[] {stringArray[i]}, ((ArrayType) logicalType).getElementType()));
-        return new GenericArrayData(arrayElements);
+        if(((ArrayType) logicalType).getElementType().getTypeRoot() == LogicalTypeRoot.ROW){
+          int fieldSize = ((RowType)((ArrayType)logicalType).getElementType()).getFields().size();
+          Object[] arrayElements = new Object[stringArray.length / fieldSize];
+          for (int i = 0; i < arrayElements.length; i += 1){
+            String[] valueArray = new String[fieldSize];
+            for (int j = 0; j < fieldSize; j += 1){
+              valueArray[j] = stringArray[i * fieldSize + j];
+            }
+            arrayElements[i] =
+                    (stringValueToType(
+                            valueArray, ((ArrayType) logicalType).getElementType()));
+          }
+          return new GenericArrayData(arrayElements);
+        }else{
+          Object[] arrayElements = new Object[stringArray.length];
+          for (int i = 0; i < stringArray.length; i++)
+            arrayElements[i] =
+                    (stringValueToType(
+                            new String[] {stringArray[i]}, ((ArrayType) logicalType).getElementType()));
+          return new GenericArrayData(arrayElements);
+        }
       case MULTISET:
         Map<Object, Integer> multisetMap = new HashMap<>();
         for (int i = 0; i < stringArray.length; i++) {

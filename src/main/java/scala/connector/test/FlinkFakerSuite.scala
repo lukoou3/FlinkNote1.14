@@ -49,6 +49,35 @@ class FlinkFakerSuite extends AnyFunSuite with BeforeAndAfterAll{
     rstTable.execute().print()
   }
 
+  test("ScanTableSource2"){
+    var sql = """
+    create table `row_array_tb` (
+      `id` int,
+      `datas` array<row<
+          name string,
+          age int
+      >>
+    ) with (
+      'connector' = 'faker',
+      'fields.id.expression' = '#{number.numberBetween ''0'',''100000''}',
+      'fields.datas.name.expression' = '#{harry_potter.spell}',
+      'fields.datas.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.datas.length' = '3',
+      'sleep-per-row' = '500'
+      -- 'number-of-rows' = '10'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    SELECT * FROM row_array_tb
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    rstTable.printSchema()
+
+    rstTable.execute().print()
+  }
+
   /**
    * '#{date.past ''15'',''SECONDS''}'
    * 生成过去最多15秒的时间戳，也就是说生成的时间戳范围：[ts-15, ts]

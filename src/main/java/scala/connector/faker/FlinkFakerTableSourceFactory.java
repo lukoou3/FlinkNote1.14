@@ -14,6 +14,7 @@ import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.utils.TableSchemaUtils;
@@ -156,9 +157,21 @@ public class FlinkFakerTableSourceFactory implements DynamicTableSourceFactory {
           key(FIELDS + "." + fieldName + ".value." + EXPRESSION).stringType().noDefaultValue();
       fieldExpression = new String[] {options.get(keyExpression), options.get(valueExpression)};
 
-    } else if (dataType.getLogicalType().getTypeRoot() == LogicalTypeRoot.ROW) {
+    } else if (
+            dataType.getLogicalType().getTypeRoot() == LogicalTypeRoot.ROW
+            || (
+                    dataType.getLogicalType().getTypeRoot() == LogicalTypeRoot.ARRAY &&
+                            ((ArrayType)dataType.getLogicalType()).getElementType().getTypeRoot() == LogicalTypeRoot.ROW
+                    )
+    ) {
       StringBuilder stringBuilder = new StringBuilder();
-      List<RowType.RowField> rowFields = ((RowType) dataType.getLogicalType()).getFields();
+      List<RowType.RowField> rowFields = null;
+      if(dataType.getLogicalType().getTypeRoot() == LogicalTypeRoot.ROW){
+        rowFields = ((RowType) dataType.getLogicalType()).getFields();
+      }else{
+        rowFields = ((RowType)((ArrayType)dataType.getLogicalType()).getElementType()).getFields();
+      }
+
       fieldExpression = new String[rowFields.size()];
       // expression is given element by element
       for (int i = 0; i < rowFields.size(); i++) {
