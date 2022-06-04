@@ -1,5 +1,6 @@
 package scala.sql.udf.internal
 
+import org.apache.flink.table.catalog.DataTypeFactory
 import org.apache.flink.table.data.{ArrayData, GenericArrayData, StringData}
 import org.apache.flink.table.types.{CollectionDataType, DataType}
 import org.apache.flink.table.types.inference.{ArgumentCount, CallContext}
@@ -39,7 +40,7 @@ class StringSplit extends InternalScalarFunction {
 
   override def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] = Seq(stringDateType, stringDateType)
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext): DataType = {
+  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     new CollectionDataType(new ArrayType(new VarCharType(VarCharType.MAX_LENGTH)), stringDateType)
   }
 }

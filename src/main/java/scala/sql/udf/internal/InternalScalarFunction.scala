@@ -17,6 +17,7 @@ import scala.collection.JavaConverters._
 abstract class InternalScalarFunction extends ScalarFunction {
   self =>
   import InternalScalarFunction._
+  var funcId = 0
 
   def argumentCount: ArgumentCount
 
@@ -24,10 +25,9 @@ abstract class InternalScalarFunction extends ScalarFunction {
 
   def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType]
 
-  def inferOutputTypes(args: Seq[DataType], callContext: CallContext): DataType
+  def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType
 
   override def getTypeInference(typeFactory: DataTypeFactory): TypeInference = {
-
     TypeInference.newBuilder()
       .inputTypeStrategy(
         new InputTypeStrategy{
@@ -48,7 +48,8 @@ abstract class InternalScalarFunction extends ScalarFunction {
       )
       .outputTypeStrategy(new TypeStrategy {
         override def inferType(callContext: CallContext): Optional[DataType] = {
-          val dType: DataType = self.inferOutputTypes(callContext.getArgumentDataTypes().asScala, callContext)
+          funcId += 1
+          val dType: DataType = self.inferOutputTypes(callContext.getArgumentDataTypes().asScala, callContext, typeFactory)
           val claszz = dataTypeConversionClass(dType)
           Optional.of(dType.bridgedTo(claszz))
         }

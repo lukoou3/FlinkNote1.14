@@ -1,5 +1,7 @@
 package scala.util
 
+import java.io.Closeable
+
 import scala.log.Logging
 import scala.util.control.ControlThrowable
 
@@ -25,4 +27,8 @@ object Utils extends Logging{
     }
   }
 
+  def tryWithResource[R <: Closeable, T](createResource: => R)(f: R => T): T = {
+    val resource = createResource
+    try f.apply(resource) finally resource.close()
+  }
 }

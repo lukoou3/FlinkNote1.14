@@ -1,5 +1,6 @@
 package scala.sql.udf.internal
 
+import org.apache.flink.table.catalog.DataTypeFactory
 import org.apache.flink.table.functions.FunctionContext
 import org.apache.flink.table.types.DataType
 import org.apache.flink.table.types.inference.{ArgumentCount, CallContext}
@@ -27,7 +28,7 @@ class Nvl extends InternalScalarFunction {
     Seq(dataType, dataType)
   }
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext): DataType = {
+  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     val optionDataType = findTightestCommonType(args(0), args(1))
     dataType = optionDataType.getOrElse(throw new Exception("must same type"))
     dataType

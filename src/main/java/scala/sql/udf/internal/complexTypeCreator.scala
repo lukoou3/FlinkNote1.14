@@ -1,6 +1,7 @@
 package scala.sql.udf.internal
 
 import org.apache.flink.table.api.DataTypes
+import org.apache.flink.table.catalog.DataTypeFactory
 import org.apache.flink.table.data.{GenericRowData, RowData}
 import org.apache.flink.table.types.DataType
 import org.apache.flink.table.types.inference.{ArgumentCount, CallContext}
@@ -28,7 +29,7 @@ class CreateNamedStruct extends InternalScalarFunction{
 
   override def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] = args
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext): DataType = {
+  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     if(args.isEmpty || args.length % 2 == 1){
       throw callContext.newValidationError("参数个数必须是偶数")
     }
@@ -42,6 +43,10 @@ class CreateNamedStruct extends InternalScalarFunction{
     val names = (0 until args.length by 2).map(callContext.getArgumentValue(_, classOf[String]).get())
     val values = args.grouped(2).map {case Seq(name, value) => value}.toSeq
     val fields = names.zip(values).map{ case (name, value) => DataTypes.FIELD(name, value)}
+
+    if(names.toSet.size != names.size){
+      throw callContext.newValidationError("属性参数不能重复")
+    }
 
     DataTypes.ROW(fields:_*)
   }

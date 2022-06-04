@@ -1,5 +1,6 @@
 package scala.sql.udf.internal
 
+import org.apache.flink.table.catalog.DataTypeFactory
 import org.apache.flink.table.data.StringData
 import org.apache.flink.table.data.binary.{BinaryStringData, BinaryStringDataUtil}
 import org.apache.flink.table.types.DataType
@@ -52,5 +53,5 @@ class SubstringIndex extends InternalScalarFunction {
   override def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] =
     Seq(stringDateType, stringDateType, intDateType)
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext): DataType = stringDateType
+  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = stringDateType
 }
