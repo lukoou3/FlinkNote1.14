@@ -4,8 +4,13 @@ import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.table.api.EnvironmentSettings
 import org.apache.flink.table.api.bridge.scala._
+import org.apache.flink.table.data.RowData
+import org.apache.flink.types.Row
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
+
+import scala.connector.log.LogSinkFunction
+import scala.sql.utils.TableImplicits._
 
 class InternalFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
   var env: StreamExecutionEnvironment = _
@@ -332,6 +337,443 @@ class InternalFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
     println(rstTable.explain())
 
     rstTable.execute().print()
+  }
+
+  test("explode array"){
+    tEnv.createTemporarySystemFunction("explode", classOf[Explode])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      age int,
+      cnt bigint,
+      names array<string>,
+      datas array<row<name string, age int>>,
+      log_time timestamp_ltz(3),
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.2',
+      'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.age.null-rate' = '0.2',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'fields.cnt.null-rate' = '0.2',
+      'fields.names.expression' = '#{harry_potter.spell}',
+      'fields.names.length' = '3',
+      'fields.names.null-rate' = '0.3',
+      'fields.datas.name.expression' = '#{harry_potter.spell}',
+      'fields.datas.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.datas.length' = '3',
+      'fields.datas.null-rate' = '0.3',
+      'fields.log_time.expression' =  '#{date.past ''5'',''0'',''SECONDS''}',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        name,
+        age,
+        names,
+        sub_name,
+        proctime
+    from tmp_tb1
+    left join lateral table(explode(names)) as t1(sub_name) on true
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    rstTable.printSchema()
+    println(rstTable.explain())
+
+    rstTable.execute().print()
+  }
+
+  test("posexplode array"){
+    tEnv.createTemporarySystemFunction("posexplode", classOf[PosExplode])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      age int,
+      cnt bigint,
+      names array<string>,
+      datas array<row<name string, age int>>,
+      log_time timestamp_ltz(3),
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.2',
+      'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.age.null-rate' = '0.2',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'fields.cnt.null-rate' = '0.2',
+      'fields.names.expression' = '#{harry_potter.spell}',
+      'fields.names.length' = '3',
+      'fields.names.null-rate' = '0.3',
+      'fields.datas.name.expression' = '#{harry_potter.spell}',
+      'fields.datas.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.datas.length' = '3',
+      'fields.datas.null-rate' = '0.3',
+      'fields.log_time.expression' =  '#{date.past ''5'',''0'',''SECONDS''}',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        datas,
+        i,
+        data,
+        data.name name,
+        data.age age
+    from tmp_tb1
+    left join lateral table(posexplode(datas)) as t1(i, data) on true
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    rstTable.printSchema()
+    println(rstTable.explain())
+
+    rstTable.execute().print()
+  }
+
+  test("explode map"){
+    tEnv.createTemporarySystemFunction("explode", classOf[Explode])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      counts map<string, int>,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.counts.key.expression' = '#{harry_potter.spell}',
+      'fields.counts.value.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.counts.length' = '3',
+      'fields.counts.null-rate' = '0.2',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        counts,
+        name,
+        cnt,
+        proctime
+    from tmp_tb1
+    left join lateral table(explode(counts)) as t1(name, cnt) on true
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    rstTable.printSchema()
+    println(rstTable.explain())
+
+    rstTable.execute().print()
+  }
+
+  test("posexplode map"){
+    tEnv.createTemporarySystemFunction("posexplode", classOf[PosExplode])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      counts map<string, int>,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.counts.key.expression' = '#{harry_potter.spell}',
+      'fields.counts.value.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.counts.length' = '3',
+      'fields.counts.null-rate' = '0.2',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        counts,
+        i,
+        name,
+        cnt,
+        proctime
+    from tmp_tb1
+    left join lateral table(posexplode(counts)) as t1(i, name, cnt) on true
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    rstTable.printSchema()
+    println(rstTable.explain())
+
+    rstTable.execute().print()
+    /*rstTable.toAppendStream[Row].addSink{row =>
+      println(row)
+    }*/
+
+  }
+
+  test("explode multiset"){
+    tEnv.createTemporarySystemFunction("explode", classOf[Explode])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      names multiset<string>,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.names.expression' = '#{regexify ''(莫南|青丝|璇音|流沙){1}''}',
+      'fields.names.length' = '4',
+      'fields.names.null-rate' = '0.2',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        names,
+        sub_name,
+        proctime
+    from tmp_tb1
+    left join lateral table(explode(names)) as t1(sub_name) on true
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    rstTable.printSchema()
+    println(rstTable.explain())
+
+    rstTable.execute().print()
+  }
+
+  test("posexplode multiset"){
+    tEnv.createTemporarySystemFunction("posexplode", classOf[PosExplode])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      names multiset<string>,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.names.expression' = '#{regexify ''(莫南|青丝|璇音|流沙){1}''}',
+      'fields.names.length' = '4',
+      'fields.names.null-rate' = '0.2',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        names,
+        i,
+        sub_name,
+        proctime
+    from tmp_tb1
+    left join lateral table(posexplode(names)) as t1(i, sub_name) on true
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    rstTable.printSchema()
+    println(rstTable.explain())
+
+    rstTable.execute().print()
+  }
+
+  // multiset只有字符串类型元素可以转，相当于map，key必须为string
+  test("multiset_to_json"){
+    tEnv.createTemporarySystemFunction("explode", classOf[Explode])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      age int,
+      cnt bigint,
+      names multiset<string>,
+      ages multiset<int>
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.2',
+      'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.age.null-rate' = '0.2',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'fields.cnt.null-rate' = '0.2',
+      'fields.names.expression' = '#{regexify ''(莫南|青丝|璇音|流沙){1}''}',
+      'fields.names.length' = '4',
+      'fields.ages.expression' = '#{number.numberBetween ''5'',''10''}',
+      'fields.ages.length' = '5',
+      'fields.ages.null-rate' = '0.2',
+      'fields.names.null-rate' = '0.2',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        name,
+        age,
+        cnt,
+        names
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+
+    rstTable.toAppendStream[RowData].addSink(new LogSinkFunction(
+      "print",
+      rstTable.getJsonRowDataSerializationSchema
+    )).setParallelism(1)
+  }
+
+  test("listagg"){
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      id string,
+      name string,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.id.expression' = '#{regexify ''(1){1}''}',
+      'fields.name.expression' = '#{regexify ''(莫南|青丝|璇音|流沙){1}''}',
+      'fields.name.null-rate' = '0.2',
+      'rows-per-second' = '5'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        id,
+        listagg(name) names
+    from tmp_tb1
+    group by id
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    rstTable.printSchema()
+    println(rstTable.explain())
+
+    rstTable.execute().print()
+  }
+
+  /**
+   * org.apache.flink.table.runtime.typeutils.TypeCheckUtils#isComparable
+   * return !isRaw(type) && !isMap(type) && !isMultiset(type) && !isRow(type) && !isArray(type)
+   */
+  test("greatest"){
+    tEnv.createTemporarySystemFunction("nvl", classOf[Nvl])
+    tEnv.createTemporarySystemFunction("named_struct", classOf[CreateNamedStruct])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      data1 row<name string, age int>,
+      data2 row<name string, age int>,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.data1.name.expression' = '#{harry_potter.spell}',
+      'fields.data1.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.data1.null-rate' = '0.1',
+      'fields.data2.name.expression' = '#{harry_potter.spell}',
+      'fields.data2.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.data2.null-rate' = '0.1',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        data1,
+        data2,
+        greatest(data1, data2) data
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    rstTable.printSchema()
+    println(rstTable.explain())
+
+    rstTable.execute().print()
+  }
+
+
+  test("sort_array"){
+    tEnv.createTemporarySystemFunction("sort_array", classOf[SortArray])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      names array<string>,
+      ages array<int>
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.2',
+      'fields.names.expression' = '#{regexify ''(aaa|bb|abc|abd){1}''}',
+      'fields.names.length' = '4',
+      'fields.ages.expression' = '#{number.numberBetween ''5'',''10''}',
+      'fields.ages.length' = '5',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        name,
+        ages,
+        sort_array(ages) ages1,
+        sort_array(ages, false) ages2,
+        names,
+        sort_array(names) names1,
+        sort_array(names, false) names2
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+
+    rstTable.execute().print()
+    /*rstTable.toAppendStream[RowData].addSink(new LogSinkFunction(
+      "print",
+      rstTable.getJsonRowDataSerializationSchema
+    )).setParallelism(1)*/
+  }
+
+  test("sort_array_row"){
+    tEnv.createTemporarySystemFunction("sort_array", classOf[SortArray])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      datasa array<row<name string, age int>>,
+      datasb array<row<age int, name string>>,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.datasa.name.expression' = '#{regexify ''(aaa|bb|abc|abd){1}''}',
+      'fields.datasa.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.datasa.length' = '3',
+      'fields.datasa.null-rate' = '0.1',
+      'fields.datasb.name.expression' = '#{regexify ''(aaa|bb|abc|abd){1}''}',
+      'fields.datasb.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.datasb.length' = '3',
+      'fields.datasb.null-rate' = '0.1',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        datasa,
+        sort_array(datasa) datasa1,
+        datasb,
+        sort_array(datasb) datasb1
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+
+    //rstTable.execute().print()
+
+    rstTable.toAppendStream[RowData].addSink(new LogSinkFunction(
+      "print",
+      rstTable.getJsonRowDataSerializationSchema
+    ))
   }
 
   override protected def afterAll(): Unit = {
