@@ -523,6 +523,7 @@ class JsonToStructs extends InternalScalarFunction{
     }
 
     val dataType = typeFactory.createDataType(callContext.getArgumentValue(1, classOf[String]).get())
+    println(dataType)
     self.logicalType = dataType.getLogicalType
 
     dataType

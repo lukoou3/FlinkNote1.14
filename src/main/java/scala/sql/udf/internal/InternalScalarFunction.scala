@@ -22,6 +22,7 @@ abstract class InternalScalarFunction extends ScalarFunction with SpecializedFun
 
   override def specialize(context: SpecializedFunction.SpecializedContext): UserDefinedFunction = {
     val clazz = context.getCallContext.getFunctionDefinition.getClass
+    println("specialize")
     clazz.newInstance().asInstanceOf[UserDefinedFunction]
   }
 

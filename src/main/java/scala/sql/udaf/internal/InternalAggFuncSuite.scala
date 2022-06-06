@@ -62,6 +62,7 @@ class InternalAggFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
   /**
    * 这个agg函数的序列化后竟然只有一个，每个注册的name只会是最后一个，太坑了，修改对象的属性也不行
    * 可以通过实现SpecializedFunction接口实现运行时new一个function，这样udf就能区分开了
+   * agg函数中不能获取字面量的参数，不论是是否实现SpecializedFunction，flink真是行，udf就没事
    */
   test("value_sum"){
     tEnv.createTemporarySystemFunction("value_sum", classOf[ValueSumAggFunction])
@@ -96,6 +97,45 @@ class InternalAggFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
     """
     val rstTable = tEnv.sqlQuery(sql)
     //rstTable.printSchema()
+    //println(rstTable.explain())
+
+    rstTable.execute().print()
+  }
+
+  test("value_count"){
+    tEnv.createTemporarySystemFunction("value_count", classOf[ValueCountIntAggFunction])
+    tEnv.createTemporarySystemFunction("value_count2", classOf[ValueCountBigintAggFunction])
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      id string,
+      name string,
+      level int,
+      score double,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.id.expression' = '#{regexify ''(1|2){1}''}',
+      'fields.name.expression' = '#{regexify ''(莫南|青丝|璇音|流沙){1}''}',
+      'fields.name.null-rate' = '0.2',
+      'fields.level.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.score.expression' = '#{number.numberBetween ''60'',''100''}',
+      'rows-per-second' = '5'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        id,
+        value_count(name) names1,
+        value_count2(name) names2,
+        value_count(level) level1,
+        value_count2(level) level2
+    from tmp_tb1
+    group by id
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    rstTable.printSchema()
     //println(rstTable.explain())
 
     rstTable.execute().print()
