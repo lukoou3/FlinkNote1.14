@@ -40,7 +40,7 @@ class Size extends InternalScalarFunction{
     args
   }
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = DataTypes.INT()
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = DataTypes.INT()
 }
 
 class Slice extends InternalScalarFunction{
@@ -93,7 +93,7 @@ class Slice extends InternalScalarFunction{
     Seq(args(0), DataTypes.INT(), DataTypes.INT())
   }
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = args(0)
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = args(0)
 }
 
 class ArrayDistinct extends InternalScalarFunction{
@@ -132,7 +132,7 @@ class ArrayDistinct extends InternalScalarFunction{
     args
   }
 
-  def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+  def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     logicalType = args(0).asInstanceOf[CollectionDataType].getElementDataType.getLogicalType
     new CollectionDataType(new ArrayType(logicalType), args(0).asInstanceOf[CollectionDataType].getElementDataType)
   }
@@ -178,7 +178,7 @@ class ArrayContains extends InternalScalarFunction {
     Seq(args(0), dataType.nullable())
   }
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = DataTypes.BOOLEAN()
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = DataTypes.BOOLEAN()
 }
 
 class ArrayMax extends InternalScalarFunction{
@@ -212,7 +212,7 @@ class ArrayMax extends InternalScalarFunction{
     args
   }
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     logicalType = args(0).asInstanceOf[CollectionDataType].getElementDataType.getLogicalType
     args(0).asInstanceOf[CollectionDataType].getElementDataType
   }
@@ -249,7 +249,7 @@ class ArrayMin extends InternalScalarFunction{
     args
   }
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     logicalType = args(0).asInstanceOf[CollectionDataType].getElementDataType.getLogicalType
     args(0).asInstanceOf[CollectionDataType].getElementDataType
   }
@@ -331,7 +331,7 @@ class SortArray extends InternalScalarFunction {
     args
   }
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     logicalType = args(0).asInstanceOf[CollectionDataType].getElementDataType.getLogicalType
     args(0)
   }

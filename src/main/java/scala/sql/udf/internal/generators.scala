@@ -104,7 +104,7 @@ abstract class ExplodeBase extends InternalTableFunction {
     args
   }
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     val arg = args(0)
     dataType = arg
     arg.getLogicalType.getTypeRoot match {

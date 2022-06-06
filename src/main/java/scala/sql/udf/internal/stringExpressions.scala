@@ -59,7 +59,7 @@ class SubstringIndex extends InternalScalarFunction {
   override def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] =
     Seq(stringDateType, stringDateType, intDateType)
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = stringDateType
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = stringDateType
 }
 
 // org.apache.spark.sql.catalyst.expressions.ConcatWs
@@ -107,5 +107,5 @@ class ConcatWs extends InternalScalarFunction{
     }
   }
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = DataTypes.STRING()
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = DataTypes.STRING()
 }

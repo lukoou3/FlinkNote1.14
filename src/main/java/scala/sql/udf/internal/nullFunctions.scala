@@ -28,7 +28,7 @@ class Nvl extends InternalScalarFunction {
     Seq(dataType, dataType)
   }
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     val optionDataType = findTightestCommonType(args(0), args(1))
     dataType = optionDataType.getOrElse(throw new Exception("must same type"))
     dataType

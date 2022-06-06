@@ -26,7 +26,7 @@ abstract class InternalScalarFunction extends ScalarFunction {
 
   def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType]
 
-  def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType
+  def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType
 
   override def getTypeInference(typeFactory: DataTypeFactory): TypeInference = {
     TypeInference.newBuilder()
@@ -50,7 +50,7 @@ abstract class InternalScalarFunction extends ScalarFunction {
       .outputTypeStrategy(new TypeStrategy {
         override def inferType(callContext: CallContext): Optional[DataType] = {
           funcId += 1
-          val dType: DataType = self.inferOutputTypes(callContext.getArgumentDataTypes().asScala, callContext, typeFactory)
+          val dType: DataType = self.inferOutputType(callContext.getArgumentDataTypes().asScala, callContext, typeFactory)
           val claszz = dataTypeConversionClass(dType)
           Optional.of(dType.bridgedTo(claszz))
         }

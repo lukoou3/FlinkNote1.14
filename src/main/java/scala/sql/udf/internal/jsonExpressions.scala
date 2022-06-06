@@ -302,7 +302,7 @@ class GetJsonObject extends InternalScalarFunction{
 
   override def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] = Seq(stringDateType, stringDateType)
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     pathFoldable = callContext.isArgumentLiteral(1)
     stringDateType
   }
@@ -410,7 +410,7 @@ class JsonTuple extends InternalTableFunction{
     args.map(_ => DataTypes.STRING())
   }
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     val fieldIdxs = (1 until args.length).toArray
 
     if(!fieldIdxs.forall(x => callContext.isArgumentLiteral(x))){
@@ -480,7 +480,7 @@ class StructsToJson extends InternalScalarFunction{
     args
   }
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     self.logicalType = args(0).getLogicalType
     DataTypes.STRING()
   }
@@ -517,7 +517,7 @@ class JsonToStructs extends InternalScalarFunction{
 
   override def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] = Seq(stringDateType, stringDateType)
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     if (!callContext.isArgumentLiteral(1) || callContext.isArgumentNull(1)) {
       throw callContext.newValidationError("Literal expected for second argument.");
     }

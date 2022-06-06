@@ -40,7 +40,7 @@ class StringSplit extends InternalScalarFunction {
 
   override def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] = Seq(stringDateType, stringDateType)
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     new CollectionDataType(new ArrayType(new VarCharType(VarCharType.MAX_LENGTH)), stringDateType)
   }
 }

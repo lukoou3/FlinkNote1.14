@@ -29,7 +29,7 @@ class CreateNamedStruct extends InternalScalarFunction{
 
   override def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] = args
 
-  override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
     if(args.isEmpty || args.length % 2 == 1){
       throw callContext.newValidationError("参数个数必须是偶数")
     }
