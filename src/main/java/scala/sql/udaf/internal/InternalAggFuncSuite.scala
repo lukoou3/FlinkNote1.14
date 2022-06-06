@@ -61,10 +61,10 @@ class InternalAggFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
 
   /**
    * 这个agg函数的序列化后竟然只有一个，每个注册的name只会是最后一个，太坑了，修改对象的属性也不行
+   * 可以通过实现SpecializedFunction接口实现运行时new一个function，这样udf就能区分开了
    */
   test("value_sum"){
-    tEnv.createTemporarySystemFunction("value_sum1", classOf[ValueSumAggFunction])
-    tEnv.createTemporarySystemFunction("value_sum2", classOf[ValueSumAggFunction])
+    tEnv.createTemporarySystemFunction("value_sum", classOf[ValueSumAggFunction])
     var sql = """
     CREATE TABLE tmp_tb1 (
       id string,
@@ -87,14 +87,16 @@ class InternalAggFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
     sql = """
     select
         id,
-        value_sum1(name, level) agg1,
-        value_sum2(name, score) agg2
+        value_sum(name, level) agg1,
+        value_sum(name, score) agg2
+        -- value_sum1(name, level) agg1,
+        -- value_sum2(name, score) agg2
     from tmp_tb1
     group by id
     """
     val rstTable = tEnv.sqlQuery(sql)
-    rstTable.printSchema()
-    println(rstTable.explain())
+    //rstTable.printSchema()
+    //println(rstTable.explain())
 
     rstTable.execute().print()
   }

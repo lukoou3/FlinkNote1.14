@@ -5,17 +5,22 @@ import java.util.Optional
 
 import org.apache.flink.table.catalog.DataTypeFactory
 import org.apache.flink.table.data.RowData
-import org.apache.flink.table.functions.{FunctionDefinition, TableFunction}
+import org.apache.flink.table.functions.{FunctionDefinition, SpecializedFunction, TableFunction, UserDefinedFunction}
 import org.apache.flink.table.types.DataType
 import org.apache.flink.table.types.inference.Signature.Argument
 import org.apache.flink.table.types.inference.{ArgumentCount, CallContext, InputTypeStrategy, Signature, TypeInference, TypeStrategy}
 
 import scala.collection.JavaConverters._
 
-abstract class InternalTableFunction extends TableFunction[RowData]{
+abstract class InternalTableFunction extends TableFunction[RowData] with SpecializedFunction{
   self =>
   import InternalScalarFunction._
   var funcId = 0
+
+  override def specialize(context: SpecializedFunction.SpecializedContext): UserDefinedFunction = {
+    val clazz = context.getCallContext.getFunctionDefinition.getClass
+    clazz.newInstance().asInstanceOf[UserDefinedFunction]
+  }
 
   def argumentCount: ArgumentCount
 

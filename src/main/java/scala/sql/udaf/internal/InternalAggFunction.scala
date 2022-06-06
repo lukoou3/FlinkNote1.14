@@ -4,19 +4,23 @@ import java.util
 import java.util.Optional
 
 import org.apache.flink.table.catalog.DataTypeFactory
-import org.apache.flink.table.functions.{AggregateFunction, FunctionDefinition}
+import org.apache.flink.table.functions.{AggregateFunction, FunctionDefinition, SpecializedFunction, UserDefinedFunction}
 import org.apache.flink.table.types.DataType
 import org.apache.flink.table.types.inference.Signature.Argument
 import org.apache.flink.table.types.inference.{ArgumentCount, CallContext, InputTypeStrategy, Signature, TypeInference, TypeStrategy}
 
 import scala.sql.udf.internal.InternalScalarFunction
-
 import scala.collection.JavaConverters._
 
-abstract class InternalAggFunction[T, ACC] extends AggregateFunction[T, ACC]{
+abstract class InternalAggFunction[T, ACC] extends AggregateFunction[T, ACC] with SpecializedFunction{
   self =>
   import InternalScalarFunction._
   var funcId = 0
+
+  override def specialize(context: SpecializedFunction.SpecializedContext): UserDefinedFunction = {
+    val clazz = context.getCallContext.getFunctionDefinition.getClass
+    clazz.newInstance().asInstanceOf[UserDefinedFunction]
+  }
 
   def argumentCount: ArgumentCount
 

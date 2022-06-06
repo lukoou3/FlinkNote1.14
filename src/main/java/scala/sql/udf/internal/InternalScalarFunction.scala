@@ -5,7 +5,7 @@ import java.util.{Collections, Optional}
 
 import org.apache.flink.table.catalog.DataTypeFactory
 import org.apache.flink.table.data.{ArrayData, MapData, RowData, StringData, TimestampData}
-import org.apache.flink.table.functions.{FunctionDefinition, ScalarFunction}
+import org.apache.flink.table.functions.{FunctionDefinition, ScalarFunction, SpecializedFunction, UserDefinedFunction}
 import org.apache.flink.table.types.inference.Signature.Argument
 import org.apache.flink.table.types.{AtomicDataType, DataType}
 import org.apache.flink.table.types.inference.{ArgumentCount, CallContext, ConstantArgumentCount, InputTypeStrategy, Signature, TypeInference, TypeStrategy}
@@ -15,10 +15,15 @@ import org.apache.flink.table.types.logical.{IntType, LogicalType, LogicalTypeRo
 import scala.collection.JavaConverters._
 import scala.math.Ordering
 
-abstract class InternalScalarFunction extends ScalarFunction {
+abstract class InternalScalarFunction extends ScalarFunction with SpecializedFunction{
   self =>
   import InternalScalarFunction._
   var funcId = 0
+
+  override def specialize(context: SpecializedFunction.SpecializedContext): UserDefinedFunction = {
+    val clazz = context.getCallContext.getFunctionDefinition.getClass
+    clazz.newInstance().asInstanceOf[UserDefinedFunction]
+  }
 
   def argumentCount: ArgumentCount
 

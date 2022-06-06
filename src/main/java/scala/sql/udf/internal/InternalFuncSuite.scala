@@ -26,6 +26,46 @@ class InternalFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
     tEnv = StreamTableEnvironment.create(env, settings)
   }
 
+  test("nvl2"){
+    tEnv.createTemporarySystemFunction("nvl", classOf[Nvl])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      code int,
+      cnt bigint,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.3',
+      'fields.code.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.code.null-rate' = '0.3',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'fields.cnt.null-rate' = '0.3',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        name,
+        code,
+        cnt,
+        -- 可以提示类型转换
+        nvl(name, '2') name1,
+        nvl(code, cnt) code2,
+        proctime
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    //rstTable.printSchema()
+    //println(rstTable.explain())
+
+    rstTable.execute().print()
+  }
+
   test("nvl"){
     tEnv.createTemporarySystemFunction("nvl", classOf[Nvl])
     tEnv.createTemporarySystemFunction("named_struct", classOf[CreateNamedStruct])
