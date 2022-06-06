@@ -2,12 +2,12 @@ package scala.sql.udf.internal
 
 import org.apache.flink.table.api.DataTypes
 import org.apache.flink.table.catalog.DataTypeFactory
-import org.apache.flink.table.data.{ArrayData, GenericArrayData, RowData, StringData}
+import org.apache.flink.table.data.{ArrayData, GenericArrayData, MapData, RowData, StringData}
 import org.apache.flink.table.data.binary.{BinaryArrayData, BinaryStringData, BinaryStringDataUtil}
 import org.apache.flink.table.types.{CollectionDataType, DataType}
 import org.apache.flink.table.types.logical.LogicalTypeRoot._
 import org.apache.flink.table.types.inference.{ArgumentCount, CallContext}
-import org.apache.flink.table.types.logical.{ArrayType, VarCharType}
+import org.apache.flink.table.types.logical.{ArrayType, MultisetType, VarCharType}
 
 import scala.collection.JavaConverters._
 import InternalScalarFunction._
@@ -64,6 +64,7 @@ class SubstringIndex extends InternalScalarFunction {
 
 // org.apache.spark.sql.catalyst.expressions.ConcatWs
 class ConcatWs extends InternalScalarFunction{
+  @transient lazy val valueGetter = ArrayData.createElementGetter(DataTypes.STRING().getLogicalType)
 
   @varargs
   def eval(eles: AnyRef*): StringData = {
@@ -75,23 +76,33 @@ class ConcatWs extends InternalScalarFunction{
           case array: GenericArrayData => array.toObjectArray.asInstanceOf[Array[StringData]]
           case array: BinaryArrayData => array.toObjectArray[StringData](new VarCharType(Integer.MAX_VALUE))
         }
+        case map: MapData =>
+          val valueArray = map.keyArray()
+          val cntArray = map.valueArray()
+          (0 until map.size()).flatMap{ i =>
+            val value = valueGetter.getElementOrNull(valueArray, i)
+            val cnt = cntArray.getInt(i)
+            //Array.fill(cnt)(value)
+            Iterator.fill(cnt)(value)
+          }
       }
     }.asInstanceOf[Iterator[BinaryStringData]]
 
     val head = eles(0)
+    // concatWs: null值会直接过滤
     BinaryStringDataUtil.concatWs(if(head == null) null else head.asInstanceOf[BinaryStringData], flatInputs.toIterable.asJava)
   }
 
   override def argumentCount: ArgumentCount = anyArgumentCount
 
-  override def stringArgs: Seq[String] = Seq("sep[, str | array(str)]")
+  override def stringArgs: Seq[String] = Seq("sep[, str | array|multiset(str)]")
 
   override def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] = {
     args.map{ arg =>
-      if(arg.getLogicalType.getTypeRoot == ARRAY){
-        new CollectionDataType(new VarCharType(Integer.MAX_VALUE), DataTypes.STRING())
-      }else{
-        DataTypes.STRING()
+      arg.getLogicalType.getTypeRoot match {
+        case ARRAY => new CollectionDataType(new ArrayType(new VarCharType(Integer.MAX_VALUE)), DataTypes.STRING())
+        case MULTISET => new CollectionDataType(new MultisetType(new VarCharType(Integer.MAX_VALUE)), DataTypes.STRING())
+        case _ => DataTypes.STRING()
       }
     }
   }

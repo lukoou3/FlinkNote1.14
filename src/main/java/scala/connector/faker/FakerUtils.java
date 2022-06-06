@@ -2,6 +2,7 @@ package scala.connector.faker;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Date;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -57,6 +58,11 @@ public class FakerUtils {
         return Double.parseDouble(value);
         //      case DATE:
         //        break;
+      case DATE:
+        return (int)
+                (Date.from(Instant.from(FORMATTER.withZone(ZoneId.systemDefault()).parse(value)))
+                        .getTime()
+                        / (86400 * 1000));
       case TIME_WITHOUT_TIME_ZONE:
       case TIMESTAMP_WITHOUT_TIME_ZONE:
       case TIMESTAMP_WITH_LOCAL_TIME_ZONE:

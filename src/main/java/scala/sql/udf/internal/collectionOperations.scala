@@ -7,10 +7,11 @@ import org.apache.flink.table.catalog.DataTypeFactory
 import org.apache.flink.table.data.{ArrayData, GenericArrayData, MapData, RowData, StringData}
 import org.apache.flink.table.types.{CollectionDataType, DataType}
 import org.apache.flink.table.types.inference.{ArgumentCount, CallContext}
-import org.apache.flink.table.types.logical.{LogicalType, RowType}
+import org.apache.flink.table.types.logical.{ArrayType, LogicalType, RowType, VarCharType}
 import org.apache.flink.table.types.logical.LogicalTypeRoot._
 
 import InternalScalarFunction._
+import scala.collection.mutable
 
 class Size extends InternalScalarFunction{
   var logicalType: LogicalType = _
@@ -71,7 +72,7 @@ class Slice extends InternalScalarFunction{
 
     val values = new Array[AnyRef](math.min(length, array.size() - startIndex))
     var i = startIndex
-    while(i < array.size()){
+    while(i < values.length){
       val value = eleGetter.getElementOrNull(array, i)
       values(i) = value
       i += 1
@@ -93,6 +94,48 @@ class Slice extends InternalScalarFunction{
   }
 
   override def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = args(0)
+}
+
+class ArrayDistinct extends InternalScalarFunction{
+  var logicalType: LogicalType = _
+  @transient private lazy val eleGetter = ArrayData.createElementGetter(logicalType)
+
+  def eval(obj: AnyRef): ArrayData = {
+    if(obj == null){
+      return null
+    }
+    obj match {
+      case array: ArrayData =>
+        val values = new mutable.HashSet[AnyRef]()
+        var i = 0
+        while (i < array.size()) {
+          val value = eleGetter.getElementOrNull(array, i)
+          values += value
+          i += 1
+        }
+        new GenericArrayData(values.toArray)
+      case map: MapData =>
+        val valueArray = map.keyArray()
+        valueArray
+    }
+  }
+
+  def argumentCount: ArgumentCount = fixArgumentCount(1)
+
+  def stringArgs: Seq[String] = Seq("array|multiset")
+
+  def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] = {
+    val dType = args(0).getLogicalType.getTypeRoot
+    if (dType != ARRAY && dType != MULTISET) {
+      throw callContext.newValidationError(s"input to function array_distinct should be array or multiset type, not $dType")
+    }
+    args
+  }
+
+  def inferOutputTypes(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+    logicalType = args(0).asInstanceOf[CollectionDataType].getElementDataType.getLogicalType
+    new CollectionDataType(new ArrayType(logicalType), args(0).asInstanceOf[CollectionDataType].getElementDataType)
+  }
 }
 
 class ArrayContains extends InternalScalarFunction {

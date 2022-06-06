@@ -58,7 +58,6 @@ abstract class InternalScalarFunction extends ScalarFunction {
       .build()
   }
 
-
 }
 
 object InternalScalarFunction{
@@ -139,6 +138,7 @@ object InternalScalarFunction{
       case FLOAT => classOf[java.lang.Float]
       case DOUBLE => classOf[java.lang.Double]
       case BOOLEAN => classOf[java.lang.Boolean]
+      case DATE => classOf[Integer]
       case ROW => classOf[RowData]
       case ARRAY => classOf[ArrayData]
       case MAP => classOf[MapData]

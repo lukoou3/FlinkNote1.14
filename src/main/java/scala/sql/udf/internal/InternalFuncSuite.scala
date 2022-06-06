@@ -776,7 +776,190 @@ class InternalFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
     ))
   }
 
+  test("concat_ws"){
+    tEnv.createTemporarySystemFunction("concat_ws", classOf[ConcatWs])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      names array<string>,
+      ages array<int>
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.2',
+      'fields.names.expression' = '#{regexify ''(aaa|bb|abc|abd){1}''}',
+      'fields.names.length' = '4',
+      'fields.ages.expression' = '#{number.numberBetween ''5'',''10''}',
+      'fields.ages.length' = '5',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        name,
+        names,
+        concat_ws(',', '哈哈', names) names1,
+        concat_ws(',', '哈哈', name) names2,
+        concat_ws(',', '哈哈', names, name) names3
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+
+    rstTable.execute().print()
+  }
+
+  test("size"){
+    tEnv.createTemporarySystemFunction("size", classOf[Size])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      names array<string>,
+      ages multiset<int>
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.2',
+      'fields.names.expression' = '#{regexify ''(aaa|bb|abc|abd){1}''}',
+      'fields.names.length' = '4',
+      'fields.ages.expression' = '#{number.numberBetween ''5'',''10''}',
+      'fields.ages.length' = '5',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        names,
+        size(names) names_size,
+        ages,
+        size(ages) ages_size
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+
+    rstTable.execute().print()
+  }
+
+  test("slize"){
+    tEnv.createTemporarySystemFunction("slize", classOf[Slice])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      names array<string>,
+      ages array<int>
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.2',
+      'fields.names.expression' = '#{regexify ''(aaa|bb|abc|abd){1}''}',
+      'fields.names.length' = '4',
+      'fields.names.null-rate' = '0.1',
+      'fields.ages.expression' = '#{number.numberBetween ''5'',''10''}',
+      'fields.ages.length' = '5',
+      'fields.ages.null-rate' = '0.1',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        names,
+        slize(names, 1, 3) names_slize,
+        ages,
+        slize(ages, 1, 2) ages_slize
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    rstTable.printSchema()
+
+    rstTable.execute().print()
+  }
+
+  test("array_distinct"){
+    tEnv.createTemporarySystemFunction("array_distinct", classOf[ArrayDistinct])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      names array<string>,
+      ages multiset<int>
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.2',
+      'fields.names.expression' = '#{regexify ''(aaa|bb|abc|abd){1}''}',
+      'fields.names.length' = '4',
+      'fields.names.null-rate' = '0.1',
+      'fields.ages.expression' = '#{number.numberBetween ''5'',''10''}',
+      'fields.ages.length' = '5',
+      'fields.ages.null-rate' = '0.1',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        names,
+        array_distinct(names) names_distinct,
+        ages,
+        array_distinct(ages) ages_distinct
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+
+    rstTable.execute().print()
+  }
+
+  test("array_max"){
+    tEnv.createTemporarySystemFunction("array_max", classOf[ArrayMax])
+    tEnv.createTemporarySystemFunction("array_min", classOf[ArrayMin])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      names array<string>,
+      ages array<int>
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.2',
+      'fields.names.expression' = '#{regexify ''(aaa|bb|abc|abd){1}''}',
+      'fields.names.length' = '4',
+      'fields.names.null-rate' = '0.1',
+      'fields.ages.expression' = '#{number.numberBetween ''5'',''10''}',
+      'fields.ages.length' = '5',
+      'fields.ages.null-rate' = '0.1',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        names,
+        array_max(names) names_max,
+        array_min(names) names_min,
+        ages,
+        array_max(ages) ages_max,
+        array_min(ages) ages_min
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    rstTable.printSchema()
+
+    rstTable.execute().print()
+  }
+
   override protected def afterAll(): Unit = {
     env.execute()
   }
 }
+
