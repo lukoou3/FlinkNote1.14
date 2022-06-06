@@ -78,7 +78,8 @@ class ConcatWs extends InternalScalarFunction{
       }
     }.asInstanceOf[Iterator[BinaryStringData]]
 
-    BinaryStringDataUtil.concatWs(eles(0).asInstanceOf[BinaryStringData], flatInputs.toIterable.asJava)
+    val head = eles(0)
+    BinaryStringDataUtil.concatWs(if(head == null) null else head.asInstanceOf[BinaryStringData], flatInputs.toIterable.asJava)
   }
 
   override def argumentCount: ArgumentCount = anyArgumentCount
