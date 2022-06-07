@@ -103,8 +103,7 @@ class InternalAggFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
   }
 
   test("value_count"){
-    tEnv.createTemporarySystemFunction("value_count", classOf[ValueCountIntAggFunction])
-    tEnv.createTemporarySystemFunction("value_count2", classOf[ValueCountBigintAggFunction])
+    tEnv.createTemporarySystemFunction("value_count", classOf[ValueCountAggFunction])
     var sql = """
     CREATE TABLE tmp_tb1 (
       id string,
@@ -128,9 +127,9 @@ class InternalAggFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
     select
         id,
         value_count(name) names1,
-        value_count2(name) names2,
+        value_count(name, 1) names2,
         value_count(level) level1,
-        value_count2(level) level2
+        value_count(level, 1) level2
     from tmp_tb1
     group by id
     """

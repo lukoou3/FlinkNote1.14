@@ -13,8 +13,8 @@ import org.apache.flink.table.types.logical.LogicalTypeRoot._
 import scala.sql.udf.internal.InternalScalarFunction._
 import ValueCountAggFunction._
 
-abstract class ValueCountAggFunction extends InternalAggFunction[MapData, Accumulator] {
-  def useLong: Boolean
+class ValueCountAggFunction extends InternalAggFunction[MapData, Accumulator] {
+  var useLong = false
 
   def createAccumulator(): Accumulator = {
     val acc = new Accumulator
@@ -34,9 +34,9 @@ abstract class ValueCountAggFunction extends InternalAggFunction[MapData, Accumu
         }
       }else{
          if(useLong){
-           map.put(value,count.asInstanceOf[Long] + 1L)
+           map.put(value, count.asInstanceOf[Long] + 1L)
          } else{
-           map.put(value,count.asInstanceOf[Int] + 1)
+           map.put(value, count.asInstanceOf[Int] + 1)
          }
       }
 
@@ -58,6 +58,7 @@ abstract class ValueCountAggFunction extends InternalAggFunction[MapData, Accumu
   def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] = expectArgs(args, callContext)
 
   def inferAccumulatorDataType(args: Seq[DataType], callContext: CallContext): DataType = {
+    expectArgs(args, callContext)
     DataTypes.STRUCTURED(
       classOf[Accumulator],
       DataTypes.FIELD("map", MapView.newMapViewDataType(args(0).notNull(), if(useLong) DataTypes.BIGINT() else DataTypes.INT()))
@@ -65,27 +66,32 @@ abstract class ValueCountAggFunction extends InternalAggFunction[MapData, Accumu
   }
 
   def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+    expectArgs(args, callContext)
     DataTypes.MAP(args(0).notNull(), if(useLong) DataTypes.BIGINT() else DataTypes.INT())
   }
 
   def expectArgs(args: Seq[DataType], callContext: CallContext): Seq[DataType] ={
+    // 两个参数就直接使用long, agg函数运行时没法获取Literal
     if(args.length > 1){
       assert(args(1).getLogicalType.getTypeRoot == INTEGER)
+      useLong = true
       /*assert(args(1).getLogicalType.getTypeRoot, callContext.isArgumentLiteral(1))
       useLong = callContext.getArgumentValue[Integer](1, classOf[Integer]).get() > 0*/
+    }else{
+      useLong = false
     }
     args
   }
 
 }
 
-class ValueCountIntAggFunction extends ValueCountAggFunction{
+/*class ValueCountIntAggFunction extends ValueCountAggFunction{
   def useLong: Boolean = false
 }
 
 class ValueCountBigintAggFunction extends ValueCountAggFunction{
   def useLong: Boolean = true
-}
+}*/
 
 
 object ValueCountAggFunction{
