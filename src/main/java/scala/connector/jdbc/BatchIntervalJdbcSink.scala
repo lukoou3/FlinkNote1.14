@@ -15,9 +15,10 @@ abstract class BatchIntervalJdbcSink[T](
   batchSize: Int,
   batchIntervalMs: Long,
   minPauseBetweenFlushMs: Long = 100L,
+  keyedMode: Boolean = false,
   maxRetries: Int = 2,
   periodExecSqlStrategy: PeriodExecSqlStrategy = null
-) extends BatchIntervalSink[T](batchSize, batchIntervalMs, minPauseBetweenFlushMs) with Logging {
+) extends BatchIntervalSink[T](batchSize, batchIntervalMs, minPauseBetweenFlushMs, keyedMode) with Logging {
   @transient var conn: Connection = _
   @transient var stmt: PreparedStatement = _
 
