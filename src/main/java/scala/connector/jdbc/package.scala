@@ -32,7 +32,7 @@ package object jdbc {
     def sqlsThisTime(ts: Long): List[String]
   }
 
-  implicit class ProductDataStreamJdbFunctions[T <: Product : TypeInformation](ds: DataStream[T]) {
+  implicit class ProductDataStreamJdbcFunctions[T <: Product : TypeInformation](ds: DataStream[T]) {
     def addBatchIntervalJdbcSink(
       tableName: String,
       connectionOptions: JdbcConnectionOptions,

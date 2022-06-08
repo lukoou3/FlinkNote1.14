@@ -3,12 +3,13 @@ package scala.connector.es
 import java.time.Duration
 import java.util
 
-import org.apache.flink.configuration.{ConfigOption, ConfigOptions}
+import org.apache.flink.configuration.{ConfigOption, ConfigOptions, ReadableConfig}
 import org.apache.flink.table.connector.sink.DynamicTableSink
 import org.apache.flink.table.connector.source.DynamicTableSource
 import org.apache.flink.table.factories.{DynamicTableFactory, DynamicTableSinkFactory, DynamicTableSourceFactory, FactoryUtil}
 import org.apache.flink.table.utils.TableSchemaUtils
 
+import scala.collection.JavaConverters._
 import EsTableFactory._
 
 class EsTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFactory{
@@ -18,7 +19,7 @@ class EsTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFact
     val helper = FactoryUtil.createTableFactoryHelper(this, context)
     val config = helper.getOptions
 
-    helper.validate()
+    validateRequiredOptions(config)
 
     val physicalSchema = TableSchemaUtils.getPhysicalSchema(context.getCatalogTable.getSchema)
 
@@ -29,15 +30,24 @@ class EsTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFact
     val helper = FactoryUtil.createTableFactoryHelper(this, context)
     val config = helper.getOptions
 
-    helper.validate()
+    validateRequiredOptions(config)
+
+    val cfg = context.getCatalogTable().getOptions().asScala.filter(_._1.startsWith("es.")).toMap
 
     new EsTableSink(
       context.getCatalogTable.getResolvedSchema,
       config.get(CLUSTER_NAME),
       config.get(RESOURCE),
+      cfg,
       config.get(SINK_BATCH_SIZE),
       config.get(SINK_BATCH_INTERVAL).toMillis
     )
+  }
+
+  def validateRequiredOptions(config: ReadableConfig): Unit ={
+    for (option <- requiredOptions().asScala) {
+      assert(config.get(option) != null, option.key() + "参数必须设置")
+    }
   }
 
   override def requiredOptions(): util.Set[ConfigOption[_]] = {
@@ -52,6 +62,7 @@ class EsTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFact
     optionalOptions
   }
 }
+
 object EsTableFactory{
   val CLUSTER_NAME = ConfigOptions.key("cluster-name").stringType().noDefaultValue()
   val RESOURCE = ConfigOptions.key("resource").stringType().noDefaultValue()

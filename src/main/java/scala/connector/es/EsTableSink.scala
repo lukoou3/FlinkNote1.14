@@ -12,6 +12,7 @@ class EsTableSink(
   resolvedSchema: ResolvedSchema,
   clusterName: String,
   resource: String,
+  cfg: Map[String, String],
   batchSize: Int,
   batchIntervalMs: Long,
   minPauseBetweenFlushMs: Long = 200L
@@ -26,18 +27,18 @@ class EsTableSink(
 
   def getSinkRuntimeProvider(context: DynamicTableSink.Context): DynamicTableSink.SinkRuntimeProvider = {
     val (nodes, user, password) = esParmas(clusterName)
-    val cfg = Map[String, String](
+    val rstCfg = Map[String, String](
       ES_NODES -> nodes,
       ES_RESOURCE_WRITE -> resource,
-      ES_MAPPING_DATE_RICH_OBJECT -> "false",
-      ES_INDEX_AUTO_CREATE -> "false",
       ES_MAPPING_EXCLUDE -> "_id"
-    ) ++ (if(user.nonEmpty) Map(ES_NET_HTTP_AUTH_USER -> user.get, ES_NET_HTTP_AUTH_PASS -> password.get) else Map.empty)
-    val func = getRowDataBatchIntervalJdbcSink(resolvedSchema, cfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs)
+    ) ++ {
+      if(user.nonEmpty) Map(ES_NET_HTTP_AUTH_USER -> user.get, ES_NET_HTTP_AUTH_PASS -> password.get) else Map.empty
+    } ++ cfg
+    val func = getRowDataBatchIntervalEsSink(resolvedSchema, rstCfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs)
     SinkFunctionProvider.of(func, 1)
   }
 
-  def copy(): DynamicTableSink = new EsTableSink(resolvedSchema, clusterName, resource, batchSize, batchIntervalMs, minPauseBetweenFlushMs)
+  def copy(): DynamicTableSink = new EsTableSink(resolvedSchema, clusterName, resource, cfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs)
 
   def asSummaryString(): String = "EsSink"
 }

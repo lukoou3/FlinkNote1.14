@@ -2,6 +2,11 @@ package scala.connector
 
 import java.util
 
+import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.streaming.api.datastream.DataStreamSink
+import org.apache.flink.streaming.api.scala.DataStream
+import org.apache.flink.table.api.Table
+import org.apache.flink.table.api.bridge.scala._
 import org.apache.flink.table.catalog.ResolvedSchema
 import org.apache.flink.table.data.{ArrayData, RowData}
 import org.apache.flink.table.types.logical.LogicalTypeRoot._
@@ -13,7 +18,33 @@ import scala.collection.JavaConverters._
 
 package object es {
 
-  def getRowDataBatchIntervalJdbcSink(
+  implicit class ProductDataStreamEsFunctions[T <: Product : TypeInformation](ds: DataStream[T]) {
+    def addBatchIntervalEsSink(
+      cfg: Map[String, String],
+      batchSize: Int,
+      batchIntervalMs: Long,
+      minPauseBetweenFlushMs: Long = 100L
+    ): DataStreamSink[T] = {
+      ds.addSink(new BatchIntervalEsSink[T, T](cfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs){
+        def data2EsRecord(data: T): T = data
+      })
+    }
+  }
+
+  implicit class TableFunctions(table: Table){
+    def addRowDataBatchIntervalEsSink(
+      cfg: Map[String, String],
+      batchSize: Int,
+      batchIntervalMs: Long,
+      minPauseBetweenFlushMs: Long = 100L
+    ): DataStreamSink[RowData] = {
+      val sink = getRowDataBatchIntervalEsSink(table.getResolvedSchema, cfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs)
+      val rowDataDs = table.toDataStream[RowData](table.getResolvedSchema.toSourceRowDataType.bridgedTo(classOf[RowData]))
+      rowDataDs.addSink(sink)
+    }
+  }
+
+  def getRowDataBatchIntervalEsSink(
     resolvedSchema: ResolvedSchema,
     cfg: Map[String, String],
     batchSize: Int,
