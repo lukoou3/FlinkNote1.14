@@ -3,10 +3,11 @@ package scala.connector
 import java.util
 
 import org.apache.flink.table.catalog.ResolvedSchema
-import org.apache.flink.table.data.RowData
+import org.apache.flink.table.data.{ArrayData, RowData}
 import org.apache.flink.table.types.logical.LogicalTypeRoot._
-import org.apache.flink.table.types.logical.{ArrayType, LogicalType, RowType}
-import org.apache.flink.types.Row
+import org.apache.flink.table.types.logical.{ArrayType, LogicalType, MapType, RowType}
+import org.elasticsearch.hadoop.cfg.ConfigurationOptions._
+import org.elasticsearch.hadoop.serialization.builder.JdkValueWriter
 
 import scala.collection.JavaConverters._
 
@@ -19,51 +20,153 @@ package object es {
     batchIntervalMs: Long,
     minPauseBetweenFlushMs: Long = 100L
   ): BatchIntervalEsSink[RowData, util.Map[_, _]]= {
+    val fieldGetters = resolvedSchema.getColumns.asScala.zipWithIndex.map{ case (col, i) =>
+      (i, col.getName , makeGetter(col.getDataType.getLogicalType))
+    }
 
-    new BatchIntervalEsSink[RowData, util.Map[_, _]](cfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs){
-      def data2EsRecord(data: RowData): util.Map[_, _] = {
-        null
+    new BatchIntervalEsSink[RowData, util.Map[_, _]](cfg ++ MAP(ES_SERIALIZATION_WRITER_VALUE_CLASS, classOf[JdkValueWriter].getClass),
+      batchSize, batchIntervalMs, minPauseBetweenFlushMs){
+      lazy val map = new util.HashMap[String, AnyRef]()
+
+      def data2EsRecord(row: RowData): util.Map[_, _] = {
+        map.clear()
+        for ((i, name, fieldGetter) <- fieldGetters) {
+          map.put(name, fieldGetter(row, i))
+        }
+        map
       }
     }
   }
 
-  def fieldGeterFunc(logicalType: LogicalType): AnyRef => AnyRef = {
-    logicalType.getTypeRoot match {
-      case CHAR | VARCHAR => identity
-      case INTEGER => identity
-      case BIGINT => identity
-      case FLOAT => identity
-      case DOUBLE => identity
-      case ROW =>
-        val fieldGeters = logicalType.asInstanceOf[RowType].getFields.asScala.zipWithIndex.map { case (col, i) =>
-          (i, col.getName, fieldGeterFunc(col.getType))
-        }
-        x => {
-          if(x != null){
-            val row = x.asInstanceOf[Row]
-            val map = new util.HashMap[String, AnyRef]()
-            fieldGeters.foreach{ case (i, name, valueGetter) =>
-              map.put(name, valueGetter(row.getField(i)))
-            }
-            map
-          }else{
-            null
+  val ignoreNullFields = false
+  type ValueGetter = (RowData, Int) => AnyRef
+  type ArrayValueGetter = (ArrayData, Int) => AnyRef
+
+  def makeGetter(logicalType: LogicalType): ValueGetter = logicalType.getTypeRoot match {
+    case CHAR | VARCHAR => (row, i) => row.getString(i).toString
+    case INTEGER => (row, i) => row.getInt(i)
+    case BIGINT => (row, i) => row.getLong(i)
+    case FLOAT => (row, i) => row.getFloat(i)
+    case DOUBLE => (row, i) => row.getDouble(i)
+    case ROW =>
+      val fields = logicalType.asInstanceOf[RowType].getFields.asScala
+      val fieldGetters = fields.map(_.getType).map(makeGetter)
+      val names = fields.map(_.getName)
+      (_row, _i) => {
+        val row = _row.getRow(_i, names.length)
+        val map = new util.HashMap[String, AnyRef](names.length)
+        var i = 0
+        while (i < names.size) {
+          val name = names(i)
+          if (!row.isNullAt(i)) {
+            map.put(name, fieldGetters(i)(row, i))
+          } else if (!ignoreNullFields) {
+            map.put(name, null)
           }
+          i += 1
         }
-      case ARRAY =>
-        val valueGetter = fieldGeterFunc(logicalType.asInstanceOf[ArrayType].getElementType)
-        x => {
-          if(x != null){
-            val list = new util.ArrayList[AnyRef]()
-            for (elem <- x.asInstanceOf[Array[AnyRef]]) {
-              list.add(valueGetter(elem))
-            }
-            list
-          }else{
-            null
+        map
+      }
+    case ARRAY =>
+      val elementGetter = makeArrayGetter(logicalType.asInstanceOf[ArrayType].getElementType)
+      (row, _i) => {
+        val array = row.getArray(_i)
+        val datas = new Array[AnyRef](array.size())
+        var i = 0
+        while (i < array.size()) {
+          if (!array.isNullAt(i)) {
+            datas(i) = elementGetter(array, i)
           }
+          i += 1
         }
-      case _ => throw new UnsupportedOperationException(s"unsupported data type ${logicalType.getTypeRoot}")
-    }
+        datas
+      }
+    case MAP =>
+      val keyFieldGetter = makeArrayGetter(logicalType.asInstanceOf[MapType].getKeyType)
+      val valueFieldGetter = makeArrayGetter(logicalType.asInstanceOf[MapType].getValueType)
+      (row, _i) => {
+        val map = row.getMap(_i)
+        val keyArray = map.keyArray()
+        val valueArray = map.valueArray()
+        val obj = new util.HashMap[String, AnyRef](keyArray.size())
+
+        var i = 0
+        while (i < map.size()) {
+          if (!valueArray.isNullAt(i)) {
+            obj.put(keyFieldGetter(keyArray, i).toString, valueFieldGetter(valueArray, i))
+          } else {
+            obj.put(keyFieldGetter(keyArray, i).toString, null)
+          }
+          i += 1
+        }
+
+        obj
+      }
+    case _ => throw new UnsupportedOperationException(s"unsupported data type ${logicalType.getTypeRoot}")
   }
+
+  def makeArrayGetter(logicalType: LogicalType): ArrayValueGetter = logicalType.getTypeRoot match {
+    case CHAR | VARCHAR => (array, i) => array.getString(i).toString
+    case INTEGER => (array, i) => array.getInt(i)
+    case BIGINT => (array, i) => array.getLong(i)
+    case FLOAT => (array, i) => array.getFloat(i)
+    case DOUBLE => (array, i) => array.getDouble(i)
+    case ROW =>
+      val fields = logicalType.asInstanceOf[RowType].getFields.asScala
+      val fieldGetters = fields.map(_.getType).map(makeGetter)
+      val names = fields.map(_.getName)
+      (array, _i) => {
+        val row = array.getRow(_i, names.length)
+        val map = new util.HashMap[String, AnyRef](names.length)
+        var i = 0
+        while (i < names.size) {
+          val name = names(i)
+          if (!row.isNullAt(i)) {
+            map.put(name, fieldGetters(i)(row, i))
+          } else if (!ignoreNullFields) {
+            map.put(name, null)
+          }
+          i += 1
+        }
+        map
+      }
+    case ARRAY =>
+      val elementGetter = makeArrayGetter(logicalType.asInstanceOf[ArrayType].getElementType)
+      (_array, _i) => {
+        val array = _array.getArray(_i)
+        val datas = new Array[AnyRef](array.size())
+        var i = 0
+        while (i < array.size()) {
+          if (!array.isNullAt(i)) {
+            datas(i) = elementGetter(array, i)
+          }
+          i += 1
+        }
+        datas
+      }
+    case MAP =>
+      val keyFieldGetter = makeArrayGetter(logicalType.asInstanceOf[MapType].getKeyType)
+      val valueFieldGetter = makeArrayGetter(logicalType.asInstanceOf[MapType].getValueType)
+      (array, _i) => {
+        val map = array.getMap(_i)
+        val keyArray = map.keyArray()
+        val valueArray = map.valueArray()
+        val obj = new util.HashMap[String, AnyRef](keyArray.size())
+
+        var i = 0
+        while (i < map.size()) {
+          if (!valueArray.isNullAt(i)) {
+            obj.put(keyFieldGetter(keyArray, i).toString, valueFieldGetter(valueArray, i))
+          } else {
+            obj.put(keyFieldGetter(keyArray, i).toString, null)
+          }
+          i += 1
+        }
+
+        obj
+      }
+    case _ => throw new UnsupportedOperationException(s"unsupported data type ${logicalType.getTypeRoot}")
+  }
+
+
 }

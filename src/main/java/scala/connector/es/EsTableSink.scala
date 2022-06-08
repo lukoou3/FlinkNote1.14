@@ -1,10 +1,21 @@
 package scala.connector.es
 
+import org.apache.flink.table.catalog.ResolvedSchema
 import org.apache.flink.table.connector.ChangelogMode
-import org.apache.flink.table.connector.sink.DynamicTableSink
+import org.apache.flink.table.connector.sink.{DynamicTableSink, SinkFunctionProvider}
 import org.apache.flink.types.RowKind
+import org.elasticsearch.hadoop.cfg.ConfigurationOptions._
 
-class EsTableSink extends DynamicTableSink{
+import scala.connector.es.EsTableFactory.esParmas
+
+class EsTableSink(
+  resolvedSchema: ResolvedSchema,
+  clusterName: String,
+  resource: String,
+  batchSize: Int,
+  batchIntervalMs: Long,
+  minPauseBetweenFlushMs: Long = 200L
+) extends DynamicTableSink{
 
   def getChangelogMode(requestedMode: ChangelogMode): ChangelogMode = {
     ChangelogMode.newBuilder
@@ -13,9 +24,20 @@ class EsTableSink extends DynamicTableSink{
       .build
   }
 
-  def getSinkRuntimeProvider(context: DynamicTableSink.Context): DynamicTableSink.SinkRuntimeProvider = ???
+  def getSinkRuntimeProvider(context: DynamicTableSink.Context): DynamicTableSink.SinkRuntimeProvider = {
+    val (nodes, user, password) = esParmas(clusterName)
+    val cfg = Map[String, String](
+      ES_NODES -> nodes,
+      ES_RESOURCE_WRITE -> resource,
+      ES_MAPPING_DATE_RICH_OBJECT -> "false",
+      ES_INDEX_AUTO_CREATE -> "false",
+      ES_MAPPING_EXCLUDE -> "_id"
+    ) ++ (if(user.nonEmpty) Map(ES_NET_HTTP_AUTH_USER -> user.get, ES_NET_HTTP_AUTH_PASS -> password.get) else Map.empty)
+    val func = getRowDataBatchIntervalJdbcSink(resolvedSchema, cfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs)
+    SinkFunctionProvider.of(func, 1)
+  }
 
-  def copy(): DynamicTableSink = new EsTableSink
+  def copy(): DynamicTableSink = new EsTableSink(resolvedSchema, clusterName, resource, batchSize, batchIntervalMs, minPauseBetweenFlushMs)
 
   def asSummaryString(): String = "EsSink"
 }

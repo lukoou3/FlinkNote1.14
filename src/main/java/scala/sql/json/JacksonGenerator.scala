@@ -80,7 +80,7 @@ class JacksonGenerator(
       val fieldWriters = logicalType.asInstanceOf[RowType].getFields.asScala.map(_.getType).map(makeWriter)
       val names = logicalType.asInstanceOf[RowType].getFields.asScala.map(_.getName)
       (row, i) => {
-        writeObject(writeFields(row.getRow(i, logicalType.asInstanceOf[RowType].getFields.size()), names, fieldWriters))
+        writeObject(writeFields(row.getRow(i, names.length), names, fieldWriters))
       }
     case ARRAY =>
       val elementWriter = makeArrayWriter(logicalType.asInstanceOf[ArrayType].getElementType)

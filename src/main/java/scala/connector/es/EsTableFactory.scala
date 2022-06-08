@@ -1,5 +1,6 @@
 package scala.connector.es
 
+import java.time.Duration
 import java.util
 
 import org.apache.flink.configuration.{ConfigOption, ConfigOptions}
@@ -30,7 +31,13 @@ class EsTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFact
 
     helper.validate()
 
-
+    new EsTableSink(
+      context.getCatalogTable.getResolvedSchema,
+      config.get(CLUSTER_NAME),
+      config.get(RESOURCE),
+      config.get(SINK_BATCH_SIZE),
+      config.get(SINK_BATCH_INTERVAL).toMillis
+    )
   }
 
   override def requiredOptions(): util.Set[ConfigOption[_]] = {
@@ -48,6 +55,8 @@ class EsTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFact
 object EsTableFactory{
   val CLUSTER_NAME = ConfigOptions.key("cluster-name").stringType().noDefaultValue()
   val RESOURCE = ConfigOptions.key("resource").stringType().noDefaultValue()
+  val SINK_BATCH_SIZE = ConfigOptions.key("sink.batch.size") .intType().defaultValue(200)
+  val SINK_BATCH_INTERVAL = ConfigOptions.key("sink.batch.interval") .durationType() .defaultValue(Duration.ofSeconds(5))
 
   val esParmas = Map[String, (String, Option[String], Option[String])](
     "cluster-name" -> ("cluster-name", None, None)
