@@ -10,7 +10,6 @@ import scala.connector.common.BatchIntervalSink
 import scala.log.Logging
 
 abstract class BatchIntervalJdbcSink[T](
-  sql: String,
   connectionOptions: JdbcConnectionOptions,
   batchSize: Int,
   batchIntervalMs: Long,
@@ -22,11 +21,13 @@ abstract class BatchIntervalJdbcSink[T](
   @transient var conn: Connection = _
   @transient var stmt: PreparedStatement = _
 
+  def updateSql: String
+
   def setStmt(stmt: PreparedStatement, data: T): Unit
 
   override def onInit(parameters: Configuration): Unit = {
     initConn()
-    stmt = conn.prepareStatement(sql)
+    stmt = conn.prepareStatement(updateSql)
   }
 
   final def initConn(): Unit = {
@@ -35,7 +36,7 @@ abstract class BatchIntervalJdbcSink[T](
     conn = DriverManager.getConnection(url, username, password)
     conn.setAutoCommit(true)
     logInfo("open conn")
-    logInfo(s"sql:$sql")
+    logInfo(s"sql:$updateSql")
   }
 
   override final def onFlush(datas: Iterable[T]): Unit = {

@@ -60,6 +60,8 @@ class InternalFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
     from tmp_tb1
     """
     val rstTable = tEnv.sqlQuery(sql)
+
+    rstTable.getResolvedSchema.toSinkRowDataType
     //rstTable.printSchema()
     //println(rstTable.explain())
 
