@@ -6,6 +6,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.scala.typeutils.CaseClassTypeInfo
 import org.apache.flink.streaming.api.datastream.DataStreamSink
 import org.apache.flink.streaming.api.scala.DataStream
+import org.apache.flink.table.data.RowData
 
 package object jdbc {
 
@@ -130,7 +131,22 @@ package object jdbc {
     }
   }
 
-  private def geneFlinkJdbcSql(tableName: String, cols: Seq[String], oldValcols: Seq[String], isUpdateMode: Boolean): String = {
+  abstract class RowDataBatchIntervalJdbcSink(
+    sql: String,
+    connectionOptions: JdbcConnectionOptions,
+    batchSize: Int,
+    batchIntervalMs: Long,
+    minPauseBetweenFlushMs: Long = 100L,
+    keyedMode: Boolean = false,
+    maxRetries: Int = 2,
+    periodExecSqlStrategy: PeriodExecSqlStrategy = null
+  ) extends BatchIntervalJdbcSink[RowData](sql,connectionOptions,batchSize,batchIntervalMs,minPauseBetweenFlushMs,keyedMode,maxRetries,periodExecSqlStrategy){
+
+
+  }
+
+
+  private[jdbc] def geneFlinkJdbcSql(tableName: String, cols: Seq[String], oldValcols: Seq[String], isUpdateMode: Boolean): String = {
     val columns = cols.mkString(",")
     val placeholders = cols.map(_ => "?").mkString(",")
     val sql = if (isUpdateMode) {
