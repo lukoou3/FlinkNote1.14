@@ -3,12 +3,15 @@ package scala.connector
 import java.util
 
 import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.common.typeutils.TypeSerializer
+import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.datastream.DataStreamSink
 import org.apache.flink.streaming.api.scala.DataStream
 import org.apache.flink.table.api.Table
 import org.apache.flink.table.api.bridge.scala._
 import org.apache.flink.table.catalog.ResolvedSchema
 import org.apache.flink.table.data.{ArrayData, RowData}
+import org.apache.flink.table.runtime.typeutils.InternalTypeInfo
 import org.apache.flink.table.types.logical.LogicalTypeRoot._
 import org.apache.flink.table.types.logical.{ArrayType, LogicalType, MapType, RowType}
 import org.elasticsearch.hadoop.cfg.ConfigurationOptions._
@@ -51,27 +54,44 @@ package object es {
     batchIntervalMs: Long,
     minPauseBetweenFlushMs: Long = 100L
   ): BatchIntervalEsSink[RowData, util.Map[_, _]]= {
+    val typeInformation: InternalTypeInfo[RowData] = InternalTypeInfo.of(resolvedSchema.toSourceRowDataType.getLogicalType)
     val fieldGetters = resolvedSchema.getColumns.asScala.zipWithIndex.map{ case (col, i) =>
       (i, col.getName , makeGetter(col.getDataType.getLogicalType))
     }
 
-    new BatchIntervalEsSink[RowData, util.Map[_, _]](cfg ++ MAP(ES_SERIALIZATION_WRITER_VALUE_CLASS, classOf[JdkValueWriter].getClass),
+    new BatchIntervalEsSink[RowData, util.Map[_, _]](
+      cfg ++ Map(ES_SERIALIZATION_WRITER_VALUE_CLASS -> classOf[JdkValueWriter].getName),
       batchSize, batchIntervalMs, minPauseBetweenFlushMs){
-      lazy val map = new util.HashMap[String, AnyRef]()
+      @transient var serializer: TypeSerializer[RowData] = _
+      @transient var objectReuse = false
+      lazy val map = new util.HashMap[String, Any]()
+
+      override def onInit(parameters: Configuration): Unit = {
+        super.onInit(parameters)
+        objectReuse = getRuntimeContext.getExecutionConfig.isObjectReuseEnabled
+        if(objectReuse){
+          serializer = typeInformation.createSerializer(getRuntimeContext.getExecutionConfig)
+        }
+      }
+
+      override def valueTransform(data: RowData): RowData = {
+        if(objectReuse) serializer.copy(data) else data
+      }
 
       def data2EsRecord(row: RowData): util.Map[_, _] = {
         map.clear()
         for ((i, name, fieldGetter) <- fieldGetters) {
           map.put(name, fieldGetter(row, i))
         }
+        println(map)
         map
       }
     }
   }
 
   val ignoreNullFields = false
-  type ValueGetter = (RowData, Int) => AnyRef
-  type ArrayValueGetter = (ArrayData, Int) => AnyRef
+  type ValueGetter = (RowData, Int) => Any
+  type ArrayValueGetter = (ArrayData, Int) => Any
 
   def makeGetter(logicalType: LogicalType): ValueGetter = logicalType.getTypeRoot match {
     case CHAR | VARCHAR => (row, i) => row.getString(i).toString
@@ -85,7 +105,7 @@ package object es {
       val names = fields.map(_.getName)
       (_row, _i) => {
         val row = _row.getRow(_i, names.length)
-        val map = new util.HashMap[String, AnyRef](names.length)
+        val map = new util.HashMap[String, Any](names.length)
         var i = 0
         while (i < names.size) {
           val name = names(i)
@@ -102,7 +122,7 @@ package object es {
       val elementGetter = makeArrayGetter(logicalType.asInstanceOf[ArrayType].getElementType)
       (row, _i) => {
         val array = row.getArray(_i)
-        val datas = new Array[AnyRef](array.size())
+        val datas = new Array[Any](array.size())
         var i = 0
         while (i < array.size()) {
           if (!array.isNullAt(i)) {
@@ -119,7 +139,7 @@ package object es {
         val map = row.getMap(_i)
         val keyArray = map.keyArray()
         val valueArray = map.valueArray()
-        val obj = new util.HashMap[String, AnyRef](keyArray.size())
+        val obj = new util.HashMap[String, Any](keyArray.size())
 
         var i = 0
         while (i < map.size()) {
@@ -148,7 +168,7 @@ package object es {
       val names = fields.map(_.getName)
       (array, _i) => {
         val row = array.getRow(_i, names.length)
-        val map = new util.HashMap[String, AnyRef](names.length)
+        val map = new util.HashMap[String, Any](names.length)
         var i = 0
         while (i < names.size) {
           val name = names(i)
@@ -165,7 +185,7 @@ package object es {
       val elementGetter = makeArrayGetter(logicalType.asInstanceOf[ArrayType].getElementType)
       (_array, _i) => {
         val array = _array.getArray(_i)
-        val datas = new Array[AnyRef](array.size())
+        val datas = new Array[Any](array.size())
         var i = 0
         while (i < array.size()) {
           if (!array.isNullAt(i)) {
@@ -182,7 +202,7 @@ package object es {
         val map = array.getMap(_i)
         val keyArray = map.keyArray()
         val valueArray = map.valueArray()
-        val obj = new util.HashMap[String, AnyRef](keyArray.size())
+        val obj = new util.HashMap[String, Any](keyArray.size())
 
         var i = 0
         while (i < map.size()) {

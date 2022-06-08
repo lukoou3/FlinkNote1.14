@@ -78,7 +78,7 @@ class EsWriter[T](val cfg: Map[String, String]) extends Serializable {
   protected def userProvider: Class[_ <: UserProvider] = classOf[HadoopUserProvider]
 
   private def checkEsSettings(config: Settings): Unit = {
-    assert(!settings.getIndexAutoCreate(), "cant not auto create index")
+    //assert(!settings.getIndexAutoCreate(), "cant not auto create index")
 
     // Need to discover the EsVersion here before checking if the index exists
     InitializationUtils.setUserProviderIfNotSet(config, classOf[HadoopUserProvider], log)

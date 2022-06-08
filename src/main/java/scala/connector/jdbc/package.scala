@@ -208,7 +208,9 @@ package object jdbc {
       override def onInit(parameters: Configuration): Unit = {
         super.onInit(parameters)
         objectReuse = getRuntimeContext.getExecutionConfig.isObjectReuseEnabled
-        serializer = typeInformation.createSerializer(getRuntimeContext.getExecutionConfig)
+        if(objectReuse){
+          serializer = typeInformation.createSerializer(getRuntimeContext.getExecutionConfig)
+        }
       }
 
       override def valueTransform(data: RowData): RowData = {

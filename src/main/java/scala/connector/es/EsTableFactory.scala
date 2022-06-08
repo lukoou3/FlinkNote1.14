@@ -70,7 +70,7 @@ object EsTableFactory{
   val SINK_BATCH_INTERVAL = ConfigOptions.key("sink.batch.interval") .durationType() .defaultValue(Duration.ofSeconds(5))
 
   val esParmas = Map[String, (String, Option[String], Option[String])](
-    "cluster-name" -> ("cluster-name", None, None)
+    "localhost" -> ("localhost", None, None)
   )
 }
 

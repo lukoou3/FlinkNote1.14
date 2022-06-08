@@ -65,7 +65,7 @@ abstract class BatchIntervalJdbcSink[T](
               if (stmt != null) {
                 stmt.close()
               }
-              stmt = conn.prepareStatement(sql)
+              stmt = conn.prepareStatement(updateSql)
             }
           } catch {
             case e: Exception =>
