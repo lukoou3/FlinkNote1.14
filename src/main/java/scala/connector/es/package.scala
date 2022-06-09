@@ -81,7 +81,12 @@ package object es {
       def data2EsRecord(row: RowData): util.Map[_, _] = {
         map.clear()
         for ((i, name, fieldGetter) <- fieldGetters) {
-          map.put(name, fieldGetter(row, i))
+          if(!row.isNullAt(i)){
+            map.put(name, fieldGetter(row, i))
+          }else if (!ignoreNullFields) {
+            map.put(name, null)
+          }
+
         }
         println(map)
         map

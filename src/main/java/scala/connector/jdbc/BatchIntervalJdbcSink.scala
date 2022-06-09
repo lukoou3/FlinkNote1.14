@@ -79,6 +79,7 @@ abstract class BatchIntervalJdbcSink[T](
 
   final def saveDatas(datas: Iterable[T]): Unit = {
     for (data <- datas) {
+      //logWarning(data.toString)
       setStmt(stmt, data)
       stmt.addBatch()
     }

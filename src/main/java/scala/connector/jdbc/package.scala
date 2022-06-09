@@ -74,7 +74,8 @@ package object jdbc {
               case x: java.lang.Integer => x
               case x: java.lang.Long => x
               case x: java.sql.Timestamp => x
-              case x => x.toString
+              case x: String => x
+              case x => throw new UnsupportedOperationException(s"unsupported data $x")
             }
             stmt.setObject(i + 1, v)
             i = i + 1

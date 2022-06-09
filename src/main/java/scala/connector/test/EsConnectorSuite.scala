@@ -9,6 +9,7 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 
 import scala.connector.es._
+import EsConnectorSuite._
 
 class EsConnectorSuite extends AnyFunSuite with BeforeAndAfterAll {
   var env: StreamExecutionEnvironment = _
@@ -125,7 +126,111 @@ class EsConnectorSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   }
 
+  test("addRowDataBatchIntervalEsSink复杂类型"){
+    val sql = """
+    CREATE TABLE tmp_tb1 (
+      id int,
+      name string,
+      age int,
+      cnt bigint,
+      data row<name string, age int>,
+      names array<string>,
+      datas array<row<name string, age int>>,
+      log_time timestamp(3),
+      log_time_ltz timestamp_ltz(3),
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.id.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.2',
+      'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
+       -- 'fields.age.null-rate' = '0.2',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'fields.cnt.null-rate' = '0.2',
+      'fields.data.name.expression' = '#{harry_potter.spell}',
+      'fields.data.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.data.null-rate' = '0.3',
+      'fields.names.expression' = '#{harry_potter.spell}',
+      'fields.names.length' = '3',
+      'fields.names.null-rate' = '0.3',
+      'fields.datas.name.expression' = '#{harry_potter.spell}',
+      'fields.datas.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.datas.length' = '3',
+      'fields.datas.null-rate' = '0.3',
+      'fields.log_time.expression' =  '#{date.past ''5'',''0'',''SECONDS''}',
+      'fields.log_time_ltz.expression' =  '#{date.past ''5'',''0'',''SECONDS''}',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    val table = tEnv.sqlQuery("select id,name,age,cnt,data,datas from tmp_tb1")
+
+    table.addRowDataBatchIntervalEsSink(Map(
+      ES_RESOURCE_WRITE -> "index_test5/type_test",
+      ES_INDEX_AUTO_CREATE -> "true",
+      ES_MAPPING_ID -> "id"
+    ), 10, 5000)
+  }
+
+  test("addBatchIntervalEsSink"){
+    val sql = """
+    CREATE TABLE tmp_tb1 (
+      id int,
+      name string,
+      age int,
+      cnt bigint,
+      data row<name string, age int>,
+      names array<string>,
+      datas array<row<name string, age int>>,
+      log_time timestamp(3),
+      log_time_ltz timestamp_ltz(3),
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.id.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.2',
+      'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
+       -- 'fields.age.null-rate' = '0.2',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'fields.cnt.null-rate' = '0.2',
+      'fields.data.name.expression' = '#{harry_potter.spell}',
+      'fields.data.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.data.null-rate' = '0.3',
+      'fields.names.expression' = '#{harry_potter.spell}',
+      'fields.names.length' = '3',
+      'fields.names.null-rate' = '0.3',
+      'fields.datas.name.expression' = '#{harry_potter.spell}',
+      'fields.datas.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.datas.length' = '3',
+      'fields.datas.null-rate' = '0.3',
+      'fields.log_time.expression' =  '#{date.past ''5'',''0'',''SECONDS''}',
+      'fields.log_time_ltz.expression' =  '#{date.past ''5'',''0'',''SECONDS''}',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    val table = tEnv.sqlQuery("select id,name,age,cnt,data,datas from tmp_tb1")
+
+    val dataDs = table.toDataStream(classOf[TableCaseData])
+
+    // 通过运行时反射获取scala/java字段信息
+    dataDs.addBatchIntervalEsSink(Map(
+      ES_RESOURCE_WRITE -> "index_test4/type_test",
+      ES_INDEX_AUTO_CREATE -> "true",
+      ES_MAPPING_ID -> "id"
+    ), 10, 5000)
+  }
+
   override protected def afterAll(): Unit = {
     env.execute()
   }
+}
+
+object EsConnectorSuite{
+  case class TableCaseSubData(name: String, age: Integer)
+  case class TableCaseData(id:Int, name: String, age: Int, cnt: java.lang.Long, data: TableCaseSubData, datas:Array[TableCaseSubData])
 }
