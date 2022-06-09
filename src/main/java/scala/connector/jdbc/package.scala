@@ -156,9 +156,12 @@ package object jdbc {
       keyedMode: Boolean = false,
       maxRetries: Int = 2,
       isUpdateMode: Boolean = true,
+      oldValcols: Seq[String] = Nil,
       periodExecSqlStrategy: PeriodExecSqlStrategy = null
     ): DataStreamSink[RowData] = {
-      val sink = getRowDataBatchIntervalJdbcSink(table.getResolvedSchema, tableName, connectionOptions, batchSize, batchIntervalMs)
+      val sink = getRowDataBatchIntervalJdbcSink(table.getResolvedSchema, tableName, connectionOptions, batchSize, batchIntervalMs,
+        minPauseBetweenFlushMs =minPauseBetweenFlushMs, keyedMode=keyedMode, maxRetries=maxRetries, isUpdateMode=isUpdateMode,
+        oldValcols= oldValcols, periodExecSqlStrategy=periodExecSqlStrategy)
       val rowDataDs = table.toDataStream[RowData](table.getResolvedSchema.toSourceRowDataType.bridgedTo(classOf[RowData]))
       rowDataDs.addSink(sink)
     }
@@ -174,12 +177,13 @@ package object jdbc {
     keyedMode: Boolean = false,
     maxRetries: Int = 2,
     isUpdateMode: Boolean = true,
+    oldValcols: Seq[String] = Nil,
     periodExecSqlStrategy: PeriodExecSqlStrategy = null
   ): BatchIntervalJdbcSink[RowData] = {
     val typeInformation: InternalTypeInfo[RowData] = InternalTypeInfo.of(resolvedSchema.toSourceRowDataType.getLogicalType)
     val fieldInfos = resolvedSchema.getColumns.asScala.map(col => (col.getName, col.getDataType)).toArray
     val cols = fieldInfos.map(_._1)
-    val sql = geneFlinkJdbcSql(tableName, cols, Nil, isUpdateMode)
+    val sql = geneFlinkJdbcSql(tableName, cols, oldValcols, isUpdateMode)
     val _setters = fieldInfos.map{ case (_, dataType) =>
       val func: (PreparedStatement, RowData, Int) => Unit = dataType.getLogicalType.getTypeRoot match {
         case CHAR | VARCHAR => (stmt, row, i) =>
