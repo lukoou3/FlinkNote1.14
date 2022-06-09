@@ -21,7 +21,7 @@ class LocalFileSourceFunction[T](
 
   override def open(parameters: Configuration): Unit = {
     deserializer.open(RuntimeContextInitializationContextAdapters.deserializationAdapter(getRuntimeContext()))
-    Source.fromFile(filePath, "utf-8").getLines().filter(_.trim != "").foreach{ line =>
+    Source.fromFile(filePath, "utf-8").getLines().filter(_.trim != "").slice(0, 10000).foreach{ line =>
       lineBytes += line.getBytes(StandardCharsets.UTF_8)
     }
   }
