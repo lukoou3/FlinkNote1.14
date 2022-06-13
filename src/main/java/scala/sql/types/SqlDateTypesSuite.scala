@@ -7,12 +7,14 @@ import org.apache.flink.streaming.api.scala._
 import org.apache.flink.table.api.{EnvironmentSettings, Schema}
 import org.apache.flink.table.api.bridge.scala._
 import org.apache.flink.table.data.RowData
-import org.apache.flink.table.types.DataType
-import org.apache.flink.table.types.logical.LogicalType
+import org.apache.flink.table.types.logical.utils.LogicalTypeUtils
+import org.apache.flink.table.types.{DataType, FieldsDataType}
+import org.apache.flink.table.types.logical.{LogicalType, RowType}
 import org.apache.flink.types.Row
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 
+import scala.collection.JavaConverters._
 import SqlDateTypesSuite._
 
 class SqlDateTypesSuite extends AnyFunSuite with BeforeAndAfterAll {
@@ -28,6 +30,79 @@ class SqlDateTypesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val settings = EnvironmentSettings.newInstance().inStreamingMode().build()
     tEnv = StreamTableEnvironment.create(env, settings)
   }
+
+  def printRowDataType(dataType: DataType): Unit ={
+    val fieldsDataType = dataType.asInstanceOf[FieldsDataType]
+    val logicalType = fieldsDataType.getLogicalType
+    val fieldDataTypes = fieldsDataType.getChildren
+    println("RowDataType logicalType:")
+    println(logicalType.getClass.getSimpleName, logicalType)
+    println("RowDataType fieldDataTypes:")
+    fieldDataTypes.asScala.zip(logicalType.asInstanceOf[RowType].getFieldNames.asScala).foreach{ case (dataType, name) =>
+      println(s"name:$name,dataType:(${dataType.getClass.getSimpleName}, $dataType), logicalType:(${dataType.getLogicalType.getClass.getSimpleName},${dataType.getLogicalType}), logicalTypeRoot:${dataType.getLogicalType.getTypeRoot}")
+    }
+    println("-" * 20)
+
+    // | sql               | DataType           | LogicalType             | LogicalTypeRoot                | default conversion class | internal conversion class |
+    fieldDataTypes.asScala.zip(logicalType.asInstanceOf[RowType].getFieldNames.asScala).foreach{ case (dataType, name) =>
+      println(s"| ${dataType.getLogicalType.toString.toLowerCase} | ${dataType.getClass.getSimpleName} | ${dataType.getLogicalType.getClass.getSimpleName} | ${dataType.getLogicalType.getTypeRoot} | ${dataType.getLogicalType.getDefaultConversion.getSimpleName} | ${LogicalTypeUtils.toInternalConversionClass(dataType.getLogicalType).getSimpleName} |")
+    }
+  }
+
+  /**
+   *
+   */
+  test("sql_type_cat"){
+    val sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      age int,
+      price double,
+      cnt bigint,
+      data row<name string, age int>,
+      name_set multiset<string>,
+      names array<string>,
+      datas array<row<name string, age int>>,
+      value_counts map<string, int>,
+      log_time timestamp(3),
+      log_time_ltz timestamp_ltz(3),
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.price.expression' = '#{number.randomDouble ''2'',''1'',''150''}',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'fields.data.name.expression' = '#{harry_potter.spell}',
+      'fields.data.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.name_set.expression' = '#{regexify ''(莫南|青丝|璇音|流沙){1}''}',
+      'fields.name_set.length' = '4',
+      'fields.names.expression' = '#{harry_potter.spell}',
+      'fields.names.length' = '3',
+      'fields.datas.name.expression' = '#{harry_potter.spell}',
+      'fields.datas.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.datas.length' = '3',
+      'fields.value_counts.key.expression' = '#{harry_potter.spell}',
+      'fields.value_counts.value.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.value_counts.length' = '3',
+      'fields.log_time.expression' =  '#{date.past ''5'',''0'',''SECONDS''}',
+      'fields.log_time_ltz.expression' =  '#{date.past ''5'',''0'',''SECONDS''}',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    val table = tEnv.sqlQuery("select * from tmp_tb1")
+    val sourceRowDataType = table.getResolvedSchema.toSourceRowDataType
+    val physicalRowDataType = table.getResolvedSchema.toPhysicalRowDataType
+
+    printRowDataType(sourceRowDataType)
+    println("#" * 20)
+    printRowDataType(physicalRowDataType)
+    println("#" * 20)
+    table.toDataStream.print()
+  }
+
 
   /**
    * 之前的直接通过传入可变参数重命名列名和定义处理/事件时间的方法被标记废弃了
