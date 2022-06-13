@@ -1,7 +1,9 @@
 package scala.util
 
-import java.io.Closeable
+import java.io.{Closeable, InputStream}
 
+import scala.collection.mutable
+import scala.io.Source
 import scala.log.Logging
 import scala.util.control.ControlThrowable
 
@@ -30,5 +32,28 @@ object Utils extends Logging{
   def tryWithResource[R <: Closeable, T](createResource: => R)(f: R => T): T = {
     val resource = createResource
     try f.apply(resource) finally resource.close()
+  }
+
+  def getYAMLResourceConf(is: InputStream, enc: String = "utf-8"): Map[String, String] ={
+    val map = new mutable.HashMap[String, String]()
+    for ((line, lineNo) <- Source.fromInputStream(is, enc).getLines().zipWithIndex) {
+      // 1. check for comments
+      val comments = line.split("#", 2)
+      val conf = comments(0).trim
+
+      // 2. get key and value
+      if (conf.length() > 0) {
+        val kv = conf.split(": ", 2).map(_.trim)
+
+        // skip line with no valid key-value pair
+        if (kv.length == 1 || kv.exists(_.isEmpty)) {
+          logWarning(s"error key and value in lineNo:$lineNo configuration:$conf")
+        }else{
+          map.put(kv(0), kv(1))
+        }
+
+      }
+    }
+    map.toMap
   }
 }

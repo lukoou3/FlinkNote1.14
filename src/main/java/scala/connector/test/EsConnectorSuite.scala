@@ -4,12 +4,15 @@ import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.table.api.EnvironmentSettings
 import org.apache.flink.table.api.bridge.scala._
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.elasticsearch.hadoop.cfg.ConfigurationOptions._
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 
+import scala.collection.JavaConverters._
 import scala.connector.es._
 import EsConnectorSuite._
+import scala.io.Source
 
 class EsConnectorSuite extends AnyFunSuite with BeforeAndAfterAll {
   var env: StreamExecutionEnvironment = _
@@ -87,7 +90,7 @@ class EsConnectorSuite extends AnyFunSuite with BeforeAndAfterAll {
     tEnv.executeSql(sql)
 
     Thread.sleep(1000 * 60 * 60)
-    //rstTable.execute().print()
+    rstTable.execute().print()
   }
 
   test("addRowDataBatchIntervalEsSink") {
@@ -124,6 +127,91 @@ class EsConnectorSuite extends AnyFunSuite with BeforeAndAfterAll {
       ES_MAPPING_ID -> "_id"
     ), 10, 5000)
 
+  }
+
+  test("addRowDataBatchIntervalEsSink-UpsertScript") {
+    var sql =
+      """
+    CREATE TABLE tmp_tb1 (
+      id string,
+      name string,
+      v int,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.id.expression' = '#{number.numberBetween ''1'',''6''}',
+      'fields.v.expression' = '#{number.numberBetween ''10'',''15''}',
+      'fields.name.expression' = '#{regexify ''(莫南|青丝|璇音|流沙){1}bb''}',
+      'rows-per-second' = '2'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql =
+      """
+    select
+        id _id,
+        id title,
+        name author,
+        v,
+        cast(id as int) `year`,
+        concat(id, '_', name) content
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+
+    rstTable.addRowDataBatchIntervalEsSink(Map(
+      ES_RESOURCE_WRITE -> "index_test6/type_test",
+      ES_INDEX_AUTO_CREATE -> "true",
+      ES_MAPPING_ID -> "_id",
+      ES_WRITE_OPERATION -> "upsert",
+      ES_UPDATE_SCRIPT_INLINE -> "if (ctx._source.v == null || ctx._source.v < params.v){ctx._source.title = params.title; ctx._source.author = params.author; ctx._source.v = params.v;}",
+      ES_UPDATE_SCRIPT_PARAMS -> "title:title,author:author,v:v",
+      ES_UPDATE_SCRIPT_LANG -> "painless"
+    ), 10, 5000)
+  }
+
+  test("table-create-UpsertScript") {
+    var sql =
+      """
+    CREATE TABLE tmp_tb1 (
+      id string,
+      name string,
+      v int,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.id.expression' = '#{number.numberBetween ''1'',''6''}',
+      'fields.v.expression' = '#{number.numberBetween ''10'',''15''}',
+      'fields.name.expression' = '#{regexify ''(莫南|青丝|璇音|流沙){1}bb''}',
+      'rows-per-second' = '2'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql =
+      """
+    select
+        id _id,
+        id title,
+        name author,
+        v,
+        cast(id as int) `year`,
+        concat(id, '_', name) content
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+
+    val cols = rstTable.getResolvedSchema.getColumns.asScala.map(_.getName)
+    val versionCol = "v"
+    val updateScript = cols.filter(_ != "_id").map(col => s"ctx._source.$col = params.$col;").mkString(" ")
+    val upsertScript = s"if(ctx._source.$versionCol == null || ctx._source.$versionCol < params.$versionCol){$updateScript}"
+    val params = cols.filter(_ != "_id").map(col => s"$col:$col").mkString(",")
+    println(updateScript)
+    println(upsertScript)
+    println(params)
+
+    rstTable.execute().print()
   }
 
   test("addRowDataBatchIntervalEsSink复杂类型"){
@@ -223,6 +311,18 @@ class EsConnectorSuite extends AnyFunSuite with BeforeAndAfterAll {
       ES_INDEX_AUTO_CREATE -> "true",
       ES_MAPPING_ID -> "id"
     ), 10, 5000)
+  }
+
+  test("FileSystem"){
+    val path = """file:///D:\IdeaWorkspace\FlinkNote\Flink12\test_data\online_log.json"""
+    val fs = FileSystem.get(new org.apache.hadoop.conf.Configuration)
+    val fsPath = new Path(path)
+    if(fs.exists(fsPath)){
+      val inputStream = fs.open(fsPath)
+      for (line <- Source.fromInputStream(inputStream, "utf-8").getLines()) {
+        println(line)
+      }
+    }
   }
 
   override protected def afterAll(): Unit = {

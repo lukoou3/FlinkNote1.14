@@ -4,7 +4,7 @@ import java.nio.charset.StandardCharsets
 
 import org.apache.flink.api.common.serialization.{DeserializationSchema, RuntimeContextInitializationContextAdapters}
 import org.apache.flink.configuration.Configuration
-import org.apache.flink.streaming.api.functions.source.{RichParallelSourceFunction, RichSourceFunction, SourceFunction}
+import org.apache.flink.streaming.api.functions.source.{RichParallelSourceFunction, SourceFunction}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
@@ -27,28 +27,25 @@ class LocalFileSourceFunction[T](
   }
 
   override def run(ctx: SourceFunction.SourceContext[T]): Unit = {
-    var i = 0
-    val step = 1
     var rows = 0
 
     while (!stop && rows < numberOfRowsForSubtask) {
-      if (i >= lineBytes.size) {
-        Thread.sleep(100000)
-        i = 0
+      // 能读取大文件
+      for (line <- Source.fromFile(filePath, "utf-8").getLines().filter(_.trim != "") if rows < numberOfRowsForSubtask) {
+        val lineByte = line.getBytes(StandardCharsets.UTF_8)
+        val data = deserializer.deserialize(lineByte)
+        ctx.collect(data)
+        rows += 1
+
+        try {
+          Thread.sleep(sleep)
+        } catch {
+          case e: Exception =>
+            e.printStackTrace()
+        }
       }
 
-      val data = deserializer.deserialize(lineBytes(i))
-      ctx.collect(data)
-      rows += 1
-
-      i += step
-
-      try {
-        Thread.sleep(sleep)
-      } catch {
-        case e: Exception =>
-          e.printStackTrace()
-      }
+      Thread.sleep(100000)
     }
   }
 
