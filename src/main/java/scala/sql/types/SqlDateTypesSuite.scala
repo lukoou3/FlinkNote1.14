@@ -145,6 +145,67 @@ class SqlDateTypesSuite extends AnyFunSuite with BeforeAndAfterAll {
     table.execute().print()
   }
 
+  test("toDataStream_append"){
+    val sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      age int,
+      cnt bigint,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    val table = tEnv.sqlQuery("select * from tmp_tb1")
+
+    val rowDs: DataStream[Row] = table.toDataStream
+    println(rowDs.dataType)
+
+    rowDs.addSink{row =>
+      println(row)
+    }
+  }
+
+  test("toDataStream_change"){
+    val sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      age int,
+      cnt bigint,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    val table = tEnv.sqlQuery("select name, max(age) age from tmp_tb1 group by name")
+
+    /**
+     * 编译就直接报错了
+     * doesn't support consuming update changes which is produced by node GroupAggregate(groupBy=[name], select=[name, MAX(age) AS age])
+     * 可以使用toDataStream校验table是否有update changes操作
+     */
+    //val rowDs: DataStream[Row] = table.toDataStream
+    val rowDs: DataStream[Row] = table.toChangelogStream
+    println(rowDs.dataType)
+    table.execute().print()
+
+    rowDs.addSink{row =>
+      println(row)
+    }
+  }
+
   test("table转ds"){
     val sql = """
     CREATE TABLE tmp_tb1 (

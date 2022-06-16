@@ -15,6 +15,7 @@ class LocalFileTableSource(
   filePath: String,
   sleep: Long = 10,
   numberOfRowsForSubtask: Long,
+  cycleNum: Int,
   decodingFormat: DecodingFormat[DeserializationSchema[RowData]],
   producedDataType: DataType
 ) extends ScanTableSource {
@@ -22,14 +23,14 @@ class LocalFileTableSource(
 
   def getScanRuntimeProvider(runtimeProviderContext: ScanTableSource.ScanContext): ScanTableSource.ScanRuntimeProvider = {
     val deserializer = decodingFormat.createRuntimeDecoder(runtimeProviderContext, producedDataType)
-    val func = new LocalFileSourceFunction[RowData](filePath, sleep, numberOfRowsForSubtask, deserializer)
+    val func = new LocalFileSourceFunction[RowData](filePath, sleep, numberOfRowsForSubtask, cycleNum, deserializer)
     new SourceFunctionProvider() {
       override def createSourceFunction(): SourceFunction[RowData] = func
       override def isBounded: Boolean = false
     }
   }
 
-  def copy(): DynamicTableSource = new LocalFileTableSource(filePath, sleep, numberOfRowsForSubtask, decodingFormat, producedDataType)
+  def copy(): DynamicTableSource = new LocalFileTableSource(filePath, sleep, numberOfRowsForSubtask, cycleNum, decodingFormat, producedDataType)
 
   def asSummaryString(): String = "LocalFile"
 }

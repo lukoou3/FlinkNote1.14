@@ -14,22 +14,24 @@ class LocalFileSourceFunction[T](
   filePath: String,
   sleep: Long = 10,
   numberOfRowsForSubtask: Long = Long.MaxValue,
+  cycleNum: Int = Int.MaxValue,
   deserializer: DeserializationSchema[T]
 ) extends RichParallelSourceFunction[T] with Logging {
   var stop = false
-  val lineBytes = ArrayBuffer[Array[Byte]]()
+  //val lineBytes = ArrayBuffer[Array[Byte]]()
 
   override def open(parameters: Configuration): Unit = {
     deserializer.open(RuntimeContextInitializationContextAdapters.deserializationAdapter(getRuntimeContext()))
-    Source.fromFile(filePath, "utf-8").getLines().filter(_.trim != "").slice(0, 10000).foreach{ line =>
+    /*Source.fromFile(filePath, "utf-8").getLines().filter(_.trim != "").slice(0, 10000).foreach{ line =>
       lineBytes += line.getBytes(StandardCharsets.UTF_8)
-    }
+    }*/
   }
 
   override def run(ctx: SourceFunction.SourceContext[T]): Unit = {
     var rows = 0
+    var cycles = 0
 
-    while (!stop && rows < numberOfRowsForSubtask) {
+    while (!stop && rows < numberOfRowsForSubtask && cycles < cycleNum) {
       // 能读取大文件
       for (line <- Source.fromFile(filePath, "utf-8").getLines().filter(_.trim != "") if rows < numberOfRowsForSubtask) {
         val lineByte = line.getBytes(StandardCharsets.UTF_8)
@@ -38,14 +40,19 @@ class LocalFileSourceFunction[T](
         rows += 1
 
         try {
-          Thread.sleep(sleep)
+          if(sleep > 0){
+            Thread.sleep(sleep)
+          }
         } catch {
           case e: Exception =>
             e.printStackTrace()
         }
       }
 
-      Thread.sleep(100000)
+      cycles += 1
+      if(cycles < cycleNum && rows < numberOfRowsForSubtask){
+        Thread.sleep(100000)
+      }
     }
   }
 
