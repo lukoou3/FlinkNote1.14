@@ -116,13 +116,14 @@ class EsConnectorSuite extends AnyFunSuite with BeforeAndAfterAll {
         id title,
         name author,
         cast(id as int) `year`,
+        cast(id as int) `year_two`,
         concat(id, '_', name) content
     from tmp_tb1
     """
     val rstTable = tEnv.sqlQuery(sql)
 
     rstTable.addRowDataBatchIntervalEsSink(Map(
-      ES_RESOURCE_WRITE -> "index_test3/type_test",
+      ES_RESOURCE_WRITE -> "index_test30/type_test",
       ES_INDEX_AUTO_CREATE -> "true",
       ES_MAPPING_ID -> "_id"
     ), 10, 5000)
