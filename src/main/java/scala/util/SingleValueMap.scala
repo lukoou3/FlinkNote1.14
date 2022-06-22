@@ -3,7 +3,7 @@ package scala.util
 import java.{util => ju}
 
 import scala.log.Logging
-
+import scala.collection.JavaConverters._
 
 /**
  * 主要用于实现全局对象，不适用于数据库连接池等
@@ -62,6 +62,10 @@ object SingleValueMap extends Logging {
 
   private def releaseResourceData[T](data: ResourceData[T]): Unit = synchronized {
     val cachedData = cache.get(data.key)
+    if(cachedData == null){
+      return
+    }
+
     assert(data eq cachedData)
 
     logInfo(s"releaseResourceData: $data")
@@ -75,4 +79,11 @@ object SingleValueMap extends Logging {
     }
   }
 
+  def close(): Unit = synchronized {
+    val datas = cache.values().asScala.collect{case data: ResourceData[_] => data}.toArray
+    for (data <- datas) {
+      data.destroy()
+      cache.remove(data.key)
+    }
+  }
 }
