@@ -61,7 +61,7 @@ class HBaseRowDataLookupFunction(
     }
     //HBaseClient.colseConn()
     if (cache != null) {
-      SingleValueMap.release(cache)
+      cache.release()
     }
     logInfo("close HBaseRowDataLookupFunction")
   }

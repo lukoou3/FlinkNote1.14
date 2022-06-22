@@ -9,23 +9,25 @@ import scala.log.Logging
  * 主要用于实现全局对象，不适用于数据库连接池等
  * 主要用于flink算子中，方便复用全局对象
  */
-object SingleValueMap extends Logging{
+object SingleValueMap extends Logging {
   sealed trait Data[T]{
-    def key: String
+    def key: Any
     def data: T
   }
 
-  class ResourceData[T](val key: String, val data: T, releaseFunc: T => Unit) extends Data[T]{
+  final class ResourceData[T] (val key: Any, val data: T, destroyFunc: T => Unit) extends Data[T]{
     private[SingleValueMap] var useCnt = 0
 
     private[SingleValueMap] def inUse: Boolean = useCnt > 0
 
-    private[SingleValueMap] def release(): Unit = releaseFunc(data)
+    private[SingleValueMap] def destroy(): Unit = destroyFunc(data)
+
+    def release(): Unit = releaseResourceData(this)
 
     override def toString: String = s"ResourceData(key=$key, data=$data, useCnt=$useCnt)"
   }
 
-  class NonResourceData[T](val key: String, val data: T) extends Data[T]{
+  final class NonResourceData[T](val key: Any, val data: T) extends Data[T]{
     override def toString: String = s"NonResourceData(key=$key, data=$data)"
   }
 
@@ -58,7 +60,7 @@ object SingleValueMap extends Logging{
     }
   }
 
-  def release[T](data: ResourceData[T]): Unit = synchronized {
+  private def releaseResourceData[T](data: ResourceData[T]): Unit = synchronized {
     val cachedData = cache.get(data.key)
     assert(data eq cachedData)
 
@@ -66,7 +68,7 @@ object SingleValueMap extends Logging{
 
     data.useCnt -= 1
     if(!data.inUse){
-      data.release()
+      data.destroy()
       cache.remove(data.key)
 
       logInfo(s"releaseAndRemoveResourceData: $data")
