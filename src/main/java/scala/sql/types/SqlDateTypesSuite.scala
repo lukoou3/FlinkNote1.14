@@ -2,7 +2,10 @@ package scala.sql.types
 
 import java.time.Instant
 
-import org.apache.flink.configuration.Configuration
+import org.apache.flink.client.deployment.executors.RemoteExecutor
+import org.apache.flink.client.program.MiniClusterClient
+import org.apache.flink.configuration.{ConfigConstants, Configuration, DeploymentOptions, JobManagerOptions, RestOptions, TaskManagerOptions}
+import org.apache.flink.runtime.minicluster.{MiniCluster, MiniClusterConfiguration}
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.table.api.{EnvironmentSettings, Schema}
 import org.apache.flink.table.api.bridge.scala._
@@ -16,6 +19,8 @@ import org.scalatest.funsuite.AnyFunSuite
 
 import scala.collection.JavaConverters._
 import SqlDateTypesSuite._
+import scala.connector.log.LogSinkFunction
+import scala.connector.test.TestCluster.{createLocalCluster, setJobManagerInfoToConfig}
 
 class SqlDateTypesSuite extends AnyFunSuite with BeforeAndAfterAll {
   var env: StreamExecutionEnvironment = _
@@ -29,6 +34,225 @@ class SqlDateTypesSuite extends AnyFunSuite with BeforeAndAfterAll {
 
     val settings = EnvironmentSettings.newInstance().inStreamingMode().build()
     tEnv = StreamTableEnvironment.create(env, settings)
+  }
+
+
+  /**
+   * https://nightlies.apache.org/flink/flink-docs-release-1.14/zh/docs/dev/table/common/#%E7%BF%BB%E8%AF%91%E4%B8%8E%E6%89%A7%E8%A1%8C%E6%9F%A5%E8%AF%A2
+   * Table API 或者 SQL 查询在下列情况下会被翻译：
+   *    当 TableEnvironment.executeSql() 被调用时。该方法是用来执行一个 SQL 语句，一旦该方法被调用， SQL 语句立即被翻译。
+   *    当 Table.executeInsert() 被调用时。该方法是用来将一个表的内容插入到目标表中，一旦该方法被调用， TABLE API 程序立即被翻译。
+   *    当 Table.execute() 被调用时。该方法是用来将一个表的内容收集到本地，一旦该方法被调用， TABLE API 程序立即被翻译。
+   *    当 StatementSet.execute() 被调用时。Table （通过 StatementSet.addInsert() 输出给某个 Sink）和 INSERT 语句 （通过调用 StatementSet.addInsertSql()）会先被缓存到 StatementSet 中，StatementSet.execute() 方法被调用时，所有的 sink 会被优化成一张有向无环图。
+   *    当 Table 被转换成 DataStream 时（参阅与 DataStream 集成）。转换完成后，它就成为一个普通的 DataStream 程序，并会在调用 StreamExecutionEnvironment.execute() 时被执行。
+   *
+   * insert的sql被翻译，就相当于提交了一个job
+   */
+  test("TranslateExecuteSqlQuery"){
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      age int,
+      cnt bigint,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    CREATE TABLE tmp_tb2 (
+      name string,
+      age int,
+      cnt bigint,
+      proctime TIMESTAMP_LTZ(3)
+    ) WITH (
+      'connector' = 'mylog',
+      'log-level' = 'warn',
+      'format' = 'json'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    println("insert into before")
+    tEnv.executeSql("insert into tmp_tb2 select * from tmp_tb1")
+    println("insert into after")
+
+    Thread.sleep(1000 * 60 * 10)
+  }
+
+  /**
+   * 端口绑定报错，要新建一个本地的环境
+   * 本地模式只能通过sql或者ds一种方式提交，这是两次任务的提交
+   */
+  test("TranslateExecuteSqlQuery2"){
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      age int,
+      cnt bigint,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    CREATE TABLE tmp_tb2 (
+      name string,
+      age int,
+      cnt bigint,
+      proctime TIMESTAMP_LTZ(3)
+    ) WITH (
+      'connector' = 'mylog',
+      'log-level' = 'warn',
+      'format' = 'json'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    println("insert into before")
+    tEnv.executeSql("insert into tmp_tb2 select * from tmp_tb1")
+    println("insert into after")
+
+    val table = tEnv.sqlQuery("select * from tmp_tb1")
+    table.toDataStream.addSink(println(_))
+  }
+
+
+  /**
+   * 把table转成ds，统一通过ds的env提交
+   */
+  test("TranslateExecuteSqlQuery3"){
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      age int,
+      cnt bigint,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    import scala.sql.utils.TableImplicits._
+
+    val rstTable = tEnv.sqlQuery("select * from tmp_tb1")
+    rstTable.toAppendStream[RowData].addSink(new LogSinkFunction(
+      "warn",
+      rstTable.getJsonRowDataSerializationSchema
+    ))
+
+    val table = tEnv.sqlQuery("select * from tmp_tb1")
+    table.toDataStream.addSink(println(_))
+  }
+
+  /**
+   * 模拟集群提交，可以看到提交了两个job，实际中要避免这种操作
+   */
+  test("TranslateExecuteSqlQueryMiniClusterClient"){
+    val config = new Configuration()
+    config.set(TaskManagerOptions.NUM_TASK_SLOTS, 2:Integer)
+    config.setInteger(JobManagerOptions.PORT, 0)
+
+    val cluster = createLocalCluster(config)
+    val port = cluster.getRestAddress.get.getPort
+
+    setJobManagerInfoToConfig(config, "localhost", port)
+    config.set(DeploymentOptions.TARGET, RemoteExecutor.NAME)
+    config.setBoolean(DeploymentOptions.ATTACHED, true)
+
+    println(s"\nStarting local Flink cluster (host: localhost, port: ${port}).\n")
+
+    val clusterClient = new MiniClusterClient(config, cluster)
+
+
+    val remoteSenv = new org.apache.flink.streaming.api.environment.StreamExecutionEnvironment(config)
+    val env = new StreamExecutionEnvironment(remoteSenv)
+    env.setParallelism(1)
+    val settings = EnvironmentSettings.newInstance().inStreamingMode().build()
+    val tEnv = StreamTableEnvironment.create(env, settings)
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      age int,
+      cnt bigint,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    CREATE TABLE tmp_tb2 (
+      name string,
+      age int,
+      cnt bigint,
+      proctime TIMESTAMP_LTZ(3)
+    ) WITH (
+      'connector' = 'mylog',
+      'log-level' = 'warn',
+      'format' = 'json'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    println("insert into before")
+    tEnv.executeSql("insert into tmp_tb2 select * from tmp_tb1")
+    println("insert into after")
+
+    val table = tEnv.sqlQuery("select * from tmp_tb1")
+    table.toDataStream.addSink(println(_))
+
+    env.execute("1111")
+  }
+
+  private def createLocalCluster(flinkConfig: Configuration) = {
+
+    val numTaskManagers = flinkConfig.getInteger(ConfigConstants.LOCAL_NUMBER_TASK_MANAGER, ConfigConstants.DEFAULT_LOCAL_NUMBER_TASK_MANAGER)
+    val numSlotsPerTaskManager = flinkConfig.getInteger(TaskManagerOptions.NUM_TASK_SLOTS)
+
+    val miniClusterConfig = new MiniClusterConfiguration.Builder()
+      .setConfiguration(flinkConfig)
+      .setNumSlotsPerTaskManager(numSlotsPerTaskManager)
+      .setNumTaskManagers(numTaskManagers)
+      .build()
+
+    val cluster = new MiniCluster(miniClusterConfig)
+    cluster.start()
+    cluster
+  }
+
+  private def setJobManagerInfoToConfig(
+    config: Configuration,
+    host: String, port: Integer): Unit = {
+
+    config.setString(JobManagerOptions.ADDRESS, host)
+    config.setInteger(JobManagerOptions.PORT, port)
+
+    config.setString(RestOptions.ADDRESS, host)
+    config.setInteger(RestOptions.PORT, port)
   }
 
   def printRowDataType(dataType: DataType): Unit ={

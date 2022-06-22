@@ -3,12 +3,14 @@ package scala.sql.utils
 import org.apache.flink.api.common.functions.FlatMapFunction
 import org.apache.flink.api.common.serialization.SerializationSchema
 import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.scala.typeutils.CaseClassTypeInfo
 import org.apache.flink.formats.common.TimestampFormat
 import org.apache.flink.formats.json.{JsonFormatOptions, JsonRowDataSerializationSchema, JsonRowSerializationSchema}
 import org.apache.flink.streaming.api.scala.DataStream
-import org.apache.flink.table.api.Table
-import org.apache.flink.table.api.bridge.scala.TableConversions
+import org.apache.flink.table.api.{Expressions, Schema, Table}
+import org.apache.flink.table.api.bridge.scala.{StreamTableEnvironment, TableConversions}
 import org.apache.flink.table.data.RowData
+import org.apache.flink.table.expressions.Expression
 import org.apache.flink.table.runtime.types.TypeInfoDataTypeConverter
 import org.apache.flink.table.types.logical.RowType
 import org.apache.flink.types.Row
@@ -18,6 +20,7 @@ import scala.reflect.ClassTag
 import scala.serialization.SerializationSchemaLogWrapper
 
 object TableImplicits {
+
   implicit class TableOps(table: Table) {
     def toRetractStreamOnlyAdd[T: TypeInformation]: DataStream[T] = {
       new TableConversions(table).toRetractStream[T].flatMap(new FlatMapFunction[(Boolean, T), T] {
@@ -32,7 +35,7 @@ object TableImplicits {
     def getJsonRowDataSerializationSchema: SerializationSchema[RowData] = {
       val rowType = table.getResolvedSchema.toPhysicalRowDataType.getLogicalType
       val serializer = new JsonRowDataSerializationSchema(
-        rowType.asInstanceOf[RowType], TimestampFormat.SQL,JsonFormatOptions.MapNullKeyMode.FAIL, "null", true)
+        rowType.asInstanceOf[RowType], TimestampFormat.SQL, JsonFormatOptions.MapNullKeyMode.FAIL, "null", true)
       serializer
     }
 
@@ -44,9 +47,24 @@ object TableImplicits {
 
   }
 
-  implicit class SerializationSchemaOps[T:ClassTag](serializer: SerializationSchema[T]){
-    def wrapLog: SerializationSchema[T] ={
+  implicit class SerializationSchemaOps[T: ClassTag](serializer: SerializationSchema[T]) {
+    def wrapLog: SerializationSchema[T] = {
       new SerializationSchemaLogWrapper(serializer)
     }
   }
+
+  implicit class StreamTableEnvOps(tEnv: StreamTableEnvironment) {
+    def createTemporaryViewFromProductDs[T <: Product](name: String, ds: DataStream[T], useProctime: Boolean = true, proctimeName: Option[String] = None): Unit = {
+      if (useProctime) {
+        tEnv.createTemporaryView(name, ds)
+      } else {
+        tEnv.createTemporaryView(name, ds,
+          Schema.newBuilder()
+            .columnByExpression(proctimeName.getOrElse("proctime"), "PROCTIME()")
+            .build()
+        )
+      }
+    }
+  }
+
 }
