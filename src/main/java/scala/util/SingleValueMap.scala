@@ -7,7 +7,6 @@ import scala.collection.JavaConverters._
 
 /**
  * 主要用于实现全局对象，不适用于数据库连接池等
- * 主要用于flink算子中，方便复用全局对象
  */
 object SingleValueMap extends Logging {
   sealed trait Data[T]{
@@ -31,9 +30,9 @@ object SingleValueMap extends Logging {
     override def toString: String = s"NonResourceData(key=$key, data=$data)"
   }
 
-  private lazy val cache: ju.Map[String, Data[_]] = new ju.LinkedHashMap[String, Data[_]]
+  private lazy val cache: ju.Map[Any, Data[_]] = new ju.LinkedHashMap[Any, Data[_]]
 
-  def acquireResourceData[T](key: String, createData: => T)(releaseFunc: T => Unit): ResourceData[T] = synchronized {
+  def acquireResourceData[T](key: Any, createData: => T)(releaseFunc: T => Unit): ResourceData[T] = synchronized {
     val existingData = cache.get(key)
     val data = if(existingData == null){
       val newData =  new ResourceData[T](key, createData, releaseFunc)
@@ -44,12 +43,12 @@ object SingleValueMap extends Logging {
     }
     data.useCnt += 1
 
-    logInfo(s"acquireResourceData: $data")
+    logWarning(s"acquireResourceData: $data")
 
     data
   }
 
-  def acquireNonResourceData[T](key: String, createData: => T): NonResourceData[T] = synchronized {
+  def acquireNonResourceData[T](key: Any, createData: => T): NonResourceData[T] = synchronized {
     val existingData = cache.get(key)
     if(existingData == null){
       val newData =  new NonResourceData[T](key, createData)
@@ -68,14 +67,14 @@ object SingleValueMap extends Logging {
 
     assert(data eq cachedData)
 
-    logInfo(s"releaseResourceData: $data")
+    logWarning(s"releaseResourceData: $data")
 
     data.useCnt -= 1
     if(!data.inUse){
       data.destroy()
       cache.remove(data.key)
 
-      logInfo(s"releaseAndRemoveResourceData: $data")
+      logWarning(s"releaseAndRemoveResourceData: $data")
     }
   }
 

@@ -60,7 +60,7 @@ class EsRowDataLookupFunction(
 
   override def close(): Unit = {
     if (cache != null) {
-      SingleValueMap.release(cache)
+      cache.release()
     }
     logInfo("close EsRowDataLookupFunction")
   }
