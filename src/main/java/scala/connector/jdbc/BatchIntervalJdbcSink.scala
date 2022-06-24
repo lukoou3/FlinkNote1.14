@@ -10,13 +10,13 @@ import scala.connector.common.BatchIntervalSink
 import scala.log.Logging
 
 abstract class BatchIntervalJdbcSink[T](
-  connectionOptions: JdbcConnectionOptions,
-  batchSize: Int,
-  batchIntervalMs: Long,
-  minPauseBetweenFlushMs: Long = 100L,
-  keyedMode: Boolean = false,
-  maxRetries: Int = 2,
-  periodExecSqlStrategy: PeriodExecSqlStrategy = null
+  val connectionOptions: JdbcConnectionOptions,
+  val batchSize: Int,
+  val batchIntervalMs: Long,
+  val minPauseBetweenFlushMs: Long = 100L,
+  val keyedMode: Boolean = false,
+  val maxRetries: Int = 2,
+  val periodExecSqlStrategy: PeriodExecSqlStrategy = null
 ) extends BatchIntervalSink[T](batchSize, batchIntervalMs, minPauseBetweenFlushMs, keyedMode) with Logging {
   @transient var conn: Connection = _
   @transient var stmt: PreparedStatement = _

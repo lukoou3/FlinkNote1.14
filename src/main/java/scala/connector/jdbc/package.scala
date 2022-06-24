@@ -11,11 +11,12 @@ import org.apache.flink.streaming.api.scala.DataStream
 import org.apache.flink.table.api.bridge.scala._
 import org.apache.flink.table.api.Table
 import org.apache.flink.table.catalog.ResolvedSchema
-import org.apache.flink.table.data.RowData
+import org.apache.flink.table.data.{GenericRowData, RowData}
 import org.apache.flink.table.runtime.typeutils.InternalTypeInfo
 import org.apache.flink.table.types.logical.LogicalTypeRoot.{BIGINT, CHAR, DOUBLE, FLOAT, INTEGER, VARCHAR}
 
 import scala.collection.JavaConverters._
+import scala.connector.common.Utils
 
 package object jdbc {
 
@@ -86,14 +87,14 @@ package object jdbc {
     }
   }
 
-  implicit class DataStreamJdbcFunctions[T : TypeInformation](ds: DataStream[T]){
+  implicit class DataStreamJdbcFunctions[T: TypeInformation](ds: DataStream[T]) {
     def addKeyedBatchIntervalJdbcSink[K, E <: Product : TypeInformation](keyFunc: T => K)(dateFunc: T => E)(
       tableName: String,
       connectionOptions: JdbcConnectionOptions,
       batchSize: Int,
       batchIntervalMs: Long,
       minPauseBetweenFlushMs: Long = 100L,
-      replaceDaTaValue: (T, T) => T = (newValue:T, oldValue:T) => newValue,
+      replaceDaTaValue: (T, T) => T = (newValue: T, oldValue: T) => newValue,
       maxRetries: Int = 2,
       fieldsForTuple: Seq[String] = Nil,
       isUpdateMode: Boolean = true,
@@ -146,7 +147,7 @@ package object jdbc {
     }
   }
 
-  implicit class TableFunctions(table: Table){
+  implicit class TableFunctions(table: Table) {
     def addRowDataBatchIntervalJdbcSink(
       tableName: String,
       connectionOptions: JdbcConnectionOptions,
@@ -160,8 +161,8 @@ package object jdbc {
       periodExecSqlStrategy: PeriodExecSqlStrategy = null
     ): DataStreamSink[RowData] = {
       val sink = getRowDataBatchIntervalJdbcSink(table.getResolvedSchema, tableName, connectionOptions, batchSize, batchIntervalMs,
-        minPauseBetweenFlushMs =minPauseBetweenFlushMs, keyedMode=keyedMode, maxRetries=maxRetries, isUpdateMode=isUpdateMode,
-        oldValcols= oldValcols, periodExecSqlStrategy=periodExecSqlStrategy)
+        minPauseBetweenFlushMs = minPauseBetweenFlushMs, keyedMode = keyedMode, maxRetries = maxRetries, isUpdateMode = isUpdateMode,
+        oldValcols = oldValcols, periodExecSqlStrategy = periodExecSqlStrategy)
       val rowDataDs = table.toDataStream[RowData](table.getResolvedSchema.toSourceRowDataType.bridgedTo(classOf[RowData]))
       rowDataDs.addSink(sink)
     }
@@ -175,6 +176,8 @@ package object jdbc {
     batchIntervalMs: Long,
     minPauseBetweenFlushMs: Long = 100L,
     keyedMode: Boolean = false,
+    keys: Seq[String] = Nil,
+    orderBy: Seq[(String, Boolean)] = Nil,
     maxRetries: Int = 2,
     isUpdateMode: Boolean = true,
     oldValcols: Seq[String] = Nil,
@@ -184,25 +187,42 @@ package object jdbc {
     val fieldInfos = resolvedSchema.getColumns.asScala.map(col => (col.getName, col.getDataType)).toArray
     val cols = fieldInfos.map(_._1)
     val sql = geneFlinkJdbcSql(tableName, cols, oldValcols, isUpdateMode)
-    val _setters = fieldInfos.map{ case (_, dataType) =>
+    val _setters = fieldInfos.map { case (_, dataType) =>
       val func: (PreparedStatement, RowData, Int) => Unit = dataType.getLogicalType.getTypeRoot match {
         case CHAR | VARCHAR => (stmt, row, i) =>
-          stmt.setString(i+1, row.getString(i).toString)
+          stmt.setString(i + 1, row.getString(i).toString)
         case INTEGER => (stmt, row, i) =>
-          stmt.setInt(i+1, row.getInt(i))
+          stmt.setInt(i + 1, row.getInt(i))
         case BIGINT => (stmt, row, i) =>
-          stmt.setLong(i+1, row.getLong(i))
+          stmt.setLong(i + 1, row.getLong(i))
         case FLOAT => (stmt, row, i) =>
-          stmt.setFloat(i+1, row.getFloat(i))
+          stmt.setFloat(i + 1, row.getFloat(i))
         case DOUBLE => (stmt, row, i) =>
-          stmt.setDouble(i+1, row.getDouble(i))
+          stmt.setDouble(i + 1, row.getDouble(i))
         case _ => throw new UnsupportedOperationException(s"unsupported data type $dataType")
       }
       func
     }
+    if(keyedMode){
+      assert(keys.nonEmpty, "keyedMode下keys不能为空")
+    }
+    val colMap = resolvedSchema.getColumns.asScala.zipWithIndex.map { case (col, i) => (col.getName, (col, i)) }.toMap
+    val keyGetters = keys.map { colName =>
+      val (col, i) = colMap.getOrElse(colName, throw new Exception("不存在的列:" + colName))
+      val fieldGetter = RowData.createFieldGetter(col.getDataType.getLogicalType, i)
+      fieldGetter
+    }.toArray
+    val _getKey: RowData => Any = if (keyGetters.length == 0) {
+      null
+    } else if (keyGetters.length == 1) {
+      row => keyGetters(0).getFieldOrNull(row)
+    } else {
+      row => GenericRowData.of(keyGetters.map(_.getFieldOrNull(row)): _*)
+    }
+    val tableOrdering = Utils.getTableOrdering(resolvedSchema, orderBy)
 
-    new  BatchIntervalJdbcSink[RowData](connectionOptions,batchSize,batchIntervalMs,minPauseBetweenFlushMs,
-      keyedMode ,maxRetries, periodExecSqlStrategy){
+    new BatchIntervalJdbcSink[RowData](connectionOptions, batchSize, batchIntervalMs, minPauseBetweenFlushMs,
+      keyedMode, maxRetries, periodExecSqlStrategy) {
       val setters = _setters
       val numFields = setters.length
       @transient var serializer: TypeSerializer[RowData] = _
@@ -213,21 +233,33 @@ package object jdbc {
       override def onInit(parameters: Configuration): Unit = {
         super.onInit(parameters)
         objectReuse = getRuntimeContext.getExecutionConfig.isObjectReuseEnabled
-        if(objectReuse){
+        if (objectReuse) {
           serializer = typeInformation.createSerializer(getRuntimeContext.getExecutionConfig)
         }
       }
 
       override def valueTransform(data: RowData): RowData = {
-        if(objectReuse) serializer.copy(data) else data
+        if (objectReuse) serializer.copy(data) else data
+      }
+
+      override def getKey(data: RowData): Any = _getKey
+
+      override def replaceValue(newValue: RowData, oldValue: RowData): RowData = if (!this.keyedMode) {
+        super.replaceValue(newValue, oldValue)
+      } else {
+        if (tableOrdering.gteq(newValue, oldValue)) {
+          newValue
+        } else {
+          oldValue
+        }
       }
 
       def setStmt(stmt: PreparedStatement, row: RowData): Unit = {
         var i = 0
         while (i < numFields) {
-          if(row.isNullAt(i)){
+          if (row.isNullAt(i)) {
             stmt.setObject(i + 1, null)
-          }else{
+          } else {
             setters(i).apply(stmt, row, i)
           }
           i += 1
