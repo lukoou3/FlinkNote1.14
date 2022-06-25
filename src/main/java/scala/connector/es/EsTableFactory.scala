@@ -11,6 +11,8 @@ import org.apache.flink.table.utils.TableSchemaUtils
 
 import scala.collection.JavaConverters._
 import EsTableFactory._
+import scala.connector.jdbc.JdbcTableFactory.SINK_KEYED_MODE_KEYS
+import scala.connector.common.Utils.StringCfgOps
 
 class EsTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFactory{
   def factoryIdentifier(): String = "myes"
@@ -40,7 +42,11 @@ class EsTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFact
       config.get(RESOURCE),
       cfg,
       config.get(SINK_BATCH_SIZE),
-      config.get(SINK_BATCH_INTERVAL).toMillis
+      config.get(SINK_BATCH_INTERVAL).toMillis,
+      keyedMode = config.get(SINK_KEYED_MODE),
+      keys = config.get(SINK_KEYED_MODE_KEYS).toSinkKeyedModeKeys,
+      orderBy = config.get(SINK_KEYED_MODE_ORDERBY).toSinkKeyedModeOrderBy,
+      updateScriptOrderBy = config.get(SINK_KEYED_MODE_SCRIPT_ORDERBY).toSinkKeyedModeOrderBy
     )
   }
 
@@ -68,6 +74,10 @@ object EsTableFactory{
   val RESOURCE = ConfigOptions.key("resource").stringType().noDefaultValue()
   val SINK_BATCH_SIZE = ConfigOptions.key("sink.batch.size") .intType().defaultValue(200)
   val SINK_BATCH_INTERVAL = ConfigOptions.key("sink.batch.interval") .durationType() .defaultValue(Duration.ofSeconds(5))
+  val SINK_KEYED_MODE = ConfigOptions.key("sink.keyed.mode").booleanType.defaultValue(false)
+  val SINK_KEYED_MODE_KEYS = ConfigOptions.key("sink.keyed.mode.keys").stringType().defaultValue("")
+  val SINK_KEYED_MODE_ORDERBY = ConfigOptions.key("sink.keyed.mode.orderby").stringType().defaultValue("")
+  val SINK_KEYED_MODE_SCRIPT_ORDERBY = ConfigOptions.key("sink.keyed.mode.script.orderby").stringType().defaultValue("")
 
   val esParmas = Map[String, (String, Option[String], Option[String])](
     "localhost" -> ("localhost", None, None)

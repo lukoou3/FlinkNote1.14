@@ -1,7 +1,7 @@
 package scala.connector.common
 
 import org.apache.flink.table.catalog.ResolvedSchema
-import org.apache.flink.table.data.{RowData, StringData}
+import org.apache.flink.table.data.{GenericRowData, RowData, StringData}
 import org.apache.flink.table.types.logical.{LogicalType, RowType}
 import org.apache.flink.table.types.logical.LogicalTypeRoot._
 
@@ -9,6 +9,49 @@ import scala.collection.JavaConverters._
 import scala.math.Ordering
 
 object Utils {
+
+  implicit class StringCfgOps(str:String){
+
+    def toSinkKeyedModeKeys: Seq[String] = str.split(",").map(_.trim).filter(_.nonEmpty)
+
+    def toSinkKeyedModeOrderBy: Seq[(String, Boolean)] = str.split(",").flatMap{ text =>
+      val kv = text.trim.split("""\\s+""")
+      if(kv.length >= 1){
+        val ascending = if(kv.length < 2){
+          true
+        } else{
+          kv(1).trim.toLowerCase match {
+            case "asc" => true
+            case "desc" => false
+            case _ => throw new Exception("ascending的值必须是asc或者desc")
+          }
+        }
+        Some((kv(0).trim, ascending))
+      }else{
+        None
+      }
+    }
+
+  }
+
+  def getTableKeyFunction(resolvedSchema: ResolvedSchema, keyedMode: Boolean, keys: Seq[String], orderBy: Seq[(String, Boolean)]): RowData => Any ={
+    if(keyedMode){
+      assert(keys.nonEmpty, "keyedMode下keys不能为空")
+    }
+    val colMap = resolvedSchema.getColumns.asScala.zipWithIndex.map { case (col, i) => (col.getName, (col, i)) }.toMap
+    val keyGetters = keys.map { colName =>
+      val (col, i) = colMap.getOrElse(colName, throw new Exception("不存在的列:" + colName))
+      val fieldGetter = RowData.createFieldGetter(col.getDataType.getLogicalType, i)
+      fieldGetter
+    }.toArray
+    if (keyGetters.length == 0) {
+      null
+    } else if (keyGetters.length == 1) {
+      row => keyGetters(0).getFieldOrNull(row)
+    } else {
+      row => GenericRowData.of(keyGetters.map(_.getFieldOrNull(row)): _*)
+    }
+  }
 
   def getTableOrdering(resolvedSchema: ResolvedSchema, orderBy: Seq[(String, Boolean)]):Ordering[RowData] = {
     val colMap = resolvedSchema.getColumns.asScala.zipWithIndex.map{case(col, i) => (col.getName, (col, i))}.toMap

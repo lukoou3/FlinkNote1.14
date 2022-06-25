@@ -12,7 +12,10 @@ class JdbcTableSink(
   val batchSize: Int,
   val batchIntervalMs: Long,
   val maxRetries: Int,
-  val isUpdateMode: Boolean
+  val isUpdateMode: Boolean,
+  val keyedMode: Boolean,
+  val keys: Seq[String],
+  val orderBy: Seq[(String, Boolean)]
 ) extends DynamicTableSink{
 
   override def getChangelogMode(requestedMode: ChangelogMode): ChangelogMode = {
@@ -23,11 +26,12 @@ class JdbcTableSink(
   }
 
   override def getSinkRuntimeProvider(context: DynamicTableSink.Context): DynamicTableSink.SinkRuntimeProvider = {
-    val func = getRowDataBatchIntervalJdbcSink(resolvedSchema, tableName, null, batchSize, batchIntervalMs, maxRetries = maxRetries, isUpdateMode=isUpdateMode)
+    val func = getRowDataBatchIntervalJdbcSink(resolvedSchema, tableName, null, batchSize, batchIntervalMs, maxRetries = maxRetries, isUpdateMode=isUpdateMode,
+      keyedMode = keyedMode, keys = keys, orderBy = orderBy)
     SinkFunctionProvider.of(func)
   }
 
-  override def copy(): DynamicTableSink = new JdbcTableSink(resolvedSchema, dbName, tableName ,batchSize,batchIntervalMs, maxRetries, isUpdateMode)
+  override def copy(): DynamicTableSink = new JdbcTableSink(resolvedSchema, dbName, tableName ,batchSize,batchIntervalMs, maxRetries, isUpdateMode, keyedMode, keys, orderBy)
 
   override def asSummaryString(): String = "JdbcSink"
 

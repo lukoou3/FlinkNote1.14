@@ -4,13 +4,18 @@ import java.time.Duration
 import java.util
 
 import org.apache.flink.configuration.{ConfigOption, ConfigOptions}
+import org.apache.flink.table.connector.sink.DynamicTableSink
 import org.apache.flink.table.connector.source.DynamicTableSource
-import org.apache.flink.table.factories.{DynamicTableFactory, DynamicTableSourceFactory, FactoryUtil}
+import org.apache.flink.table.factories.{DynamicTableFactory, DynamicTableSinkFactory, DynamicTableSourceFactory, FactoryUtil}
 import org.apache.flink.table.utils.TableSchemaUtils
 
 import HBaseTableFactory._
+import scala.connector.es.EsTableFactory.{CLUSTER_NAME, RESOURCE, SINK_BATCH_INTERVAL, SINK_BATCH_SIZE, SINK_KEYED_MODE, SINK_KEYED_MODE_ORDERBY, SINK_KEYED_MODE_SCRIPT_ORDERBY}
+import scala.connector.es.EsTableSink
+import scala.connector.jdbc.JdbcTableFactory.SINK_KEYED_MODE_KEYS
+import scala.connector.common.Utils.StringCfgOps
 
-class HBaseTableFactory extends DynamicTableSourceFactory {
+class HBaseTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFactory{
 
   def createDynamicTableSource(context: DynamicTableFactory.Context): DynamicTableSource = {
     val helper = FactoryUtil.createTableFactoryHelper(this, context)
@@ -40,6 +45,26 @@ class HBaseTableFactory extends DynamicTableSourceFactory {
     )
   }
 
+  def createDynamicTableSink(context: DynamicTableFactory.Context): DynamicTableSink = {
+    val helper = FactoryUtil.createTableFactoryHelper(this, context)
+    val config = helper.getOptions
+
+    helper.validate()
+
+    new EsTableSink(
+      context.getCatalogTable.getResolvedSchema,
+      config.get(CLUSTER_NAME),
+      config.get(RESOURCE),
+      cfg,
+      config.get(SINK_BATCH_SIZE),
+      config.get(SINK_BATCH_INTERVAL).toMillis,
+      keyedMode = config.get(SINK_KEYED_MODE),
+      keys = config.get(SINK_KEYED_MODE_KEYS).toSinkKeyedModeKeys,
+      orderBy = config.get(SINK_KEYED_MODE_ORDERBY).toSinkKeyedModeOrderBy,
+      updateScriptOrderBy = config.get(SINK_KEYED_MODE_SCRIPT_ORDERBY).toSinkKeyedModeOrderBy
+    )
+  }
+
   override def factoryIdentifier(): String = "myhbase"
 
   override def requiredOptions(): util.Set[ConfigOption[_]] = {
@@ -55,6 +80,11 @@ class HBaseTableFactory extends DynamicTableSourceFactory {
     optionalOptions.add(HBASE_INSTANCE)
     optionalOptions.add(LOOKUP_CACHE_MAX_ROWS)
     optionalOptions.add(LOOKUP_CACHE_TTL)
+    requiredOptions.add(SINK_BATCH_SIZE)
+    requiredOptions.add(SINK_BATCH_INTERVAL)
+    requiredOptions.add(SINK_KEYED_MODE)
+    requiredOptions.add(SINK_KEYED_MODE_KEYS)
+    requiredOptions.add(SINK_KEYED_MODE_ORDERBY)
     optionalOptions
   }
 }
@@ -66,6 +96,11 @@ object HBaseTableFactory{
   val HBASE_INSTANCE = ConfigOptions.key("hbase-instance").stringType().defaultValue("")
   val LOOKUP_CACHE_MAX_ROWS = ConfigOptions.key("lookup.cache.max-rows") .intType().defaultValue(-1)
   val LOOKUP_CACHE_TTL = ConfigOptions.key("lookup.cache.ttl") .durationType() .defaultValue(Duration.ofSeconds(10))
+  val SINK_BATCH_SIZE = ConfigOptions.key("sink.batch.size") .intType().defaultValue(200)
+  val SINK_BATCH_INTERVAL = ConfigOptions.key("sink.batch.interval") .durationType() .defaultValue(Duration.ofSeconds(5))
+  val SINK_KEYED_MODE = ConfigOptions.key("sink.keyed.mode").booleanType.defaultValue(false)
+  val SINK_KEYED_MODE_KEYS = ConfigOptions.key("sink.keyed.mode.keys").stringType().defaultValue("")
+  val SINK_KEYED_MODE_ORDERBY = ConfigOptions.key("sink.keyed.mode.orderby").stringType().defaultValue("")
   val hbaseParames = Map(
     "hbase-name" -> Map("kev" -> "value")
   )

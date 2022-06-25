@@ -20,10 +20,10 @@ import scala.util.ThreadUtils
  * @tparam T
  */
 abstract class BatchIntervalSink[T](
-  batchSize: Int,
-  batchIntervalMs: Long,
-  minPauseBetweenFlushMs: Long = 100L,
-  keyedMode: Boolean = false
+  val batchSize: Int,
+  val batchIntervalMs: Long,
+  val minPauseBetweenFlushMs: Long = 100L,
+  val keyedMode: Boolean = false
 ) extends RichSinkFunction[T] with CheckpointedFunction{
   @transient private var closed = false
   @transient private var scheduler: ScheduledExecutorService = _
@@ -96,10 +96,11 @@ abstract class BatchIntervalSink[T](
       if(!keyedMode){
         batch += valueTransform(value)
       }else{
-        val key = getKey(value)
+        val newValue = valueTransform(value)
+        val key = getKey(newValue)
         keyedBatch.get(key) match {
-          case Some(oldValue) => keyedBatch += key -> replaceValue(value, oldValue)
-          case None => keyedBatch += key -> value
+          case Some(oldValue) => keyedBatch += key -> replaceValue(newValue, oldValue)
+          case None => keyedBatch += key -> newValue
         }
       }
 

@@ -15,7 +15,11 @@ class EsTableSink(
   cfg: Map[String, String],
   batchSize: Int,
   batchIntervalMs: Long,
-  minPauseBetweenFlushMs: Long = 200L
+  minPauseBetweenFlushMs: Long = 200L,
+  keyedMode: Boolean = false,
+  keys: Seq[String] = Nil,
+  orderBy: Seq[(String, Boolean)] = Nil,
+  updateScriptOrderBy: Seq[(String, Boolean)] = Nil
 ) extends DynamicTableSink{
 
   def getChangelogMode(requestedMode: ChangelogMode): ChangelogMode = {
@@ -34,11 +38,25 @@ class EsTableSink(
     ) ++ {
       if(user.nonEmpty) Map(ES_NET_HTTP_AUTH_USER -> user.get, ES_NET_HTTP_AUTH_PASS -> password.get) else Map.empty
     } ++ cfg
-    val func = getRowDataBatchIntervalEsSink(resolvedSchema, rstCfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs)
+    val func = getRowDataBatchIntervalEsSink(resolvedSchema, rstCfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs,
+      keyedMode=keyedMode,keys=keys,orderBy=orderBy, updateScriptOrderBy=updateScriptOrderBy
+    )
     SinkFunctionProvider.of(func, 1)
   }
 
-  def copy(): DynamicTableSink = new EsTableSink(resolvedSchema, clusterName, resource, cfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs)
+  def copy(): DynamicTableSink = new EsTableSink(
+    resolvedSchema,
+    clusterName,
+    resource,
+    cfg,
+    batchSize,
+    batchIntervalMs,
+    minPauseBetweenFlushMs,
+    keyedMode,
+    keys,
+    orderBy,
+    updateScriptOrderBy
+  )
 
   def asSummaryString(): String = "EsSink"
 }

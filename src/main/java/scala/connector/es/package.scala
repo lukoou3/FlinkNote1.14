@@ -4,6 +4,7 @@ import java.util
 
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.common.typeutils.TypeSerializer
+import org.apache.flink.api.scala.typeutils.CaseClassTypeInfo
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.datastream.DataStreamSink
 import org.apache.flink.streaming.api.scala.DataStream
@@ -18,16 +19,25 @@ import org.elasticsearch.hadoop.cfg.ConfigurationOptions._
 import org.elasticsearch.hadoop.serialization.builder.JdkValueWriter
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.connector.common.Utils
+import scala.log.Logging
 
-package object es {
+package object es extends Logging{
 
   implicit class ProductDataStreamEsFunctions[T <: Product : TypeInformation](ds: DataStream[T]) {
     def addBatchIntervalEsSink(
       cfg: Map[String, String],
       batchSize: Int,
       batchIntervalMs: Long,
-      minPauseBetweenFlushMs: Long = 100L
+      minPauseBetweenFlushMs: Long = 100L,
+      updateScriptOrderBy: Seq[(String, Boolean)] = Nil
     ): DataStreamSink[T] = {
+      val productTypeInformation = implicitly[TypeInformation[T]].asInstanceOf[CaseClassTypeInfo[T]]
+      val extraCfg = mutable.HashMap[String, String]()
+      if(updateScriptOrderBy.nonEmpty){
+        extraCfg ++= getUpdateScriptCfg(productTypeInformation.fieldNames, cfg, updateScriptOrderBy)
+      }
       ds.addSink(new BatchIntervalEsSink[T, T](cfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs){
         def data2EsRecord(data: T): T = data
       })
@@ -39,9 +49,14 @@ package object es {
       cfg: Map[String, String],
       batchSize: Int,
       batchIntervalMs: Long,
-      minPauseBetweenFlushMs: Long = 100L
+      minPauseBetweenFlushMs: Long = 100L,
+      keyedMode: Boolean = false,
+      keys: Seq[String] = Nil,
+      orderBy: Seq[(String, Boolean)] = Nil,
+      updateScriptOrderBy: Seq[(String, Boolean)] = Nil
     ): DataStreamSink[RowData] = {
-      val sink = getRowDataBatchIntervalEsSink(table.getResolvedSchema, cfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs)
+      val sink = getRowDataBatchIntervalEsSink(table.getResolvedSchema, cfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs,
+        keyedMode=keyedMode,keys=keys,orderBy=orderBy, updateScriptOrderBy=updateScriptOrderBy)
       val rowDataDs = table.toDataStream[RowData](table.getResolvedSchema.toSourceRowDataType.bridgedTo(classOf[RowData]))
       rowDataDs.addSink(sink)
     }
@@ -52,15 +67,27 @@ package object es {
     cfg: Map[String, String],
     batchSize: Int,
     batchIntervalMs: Long,
-    minPauseBetweenFlushMs: Long = 100L
+    minPauseBetweenFlushMs: Long = 100L,
+    keyedMode: Boolean = false,
+    keys: Seq[String] = Nil,
+    orderBy: Seq[(String, Boolean)] = Nil,
+    updateScriptOrderBy: Seq[(String, Boolean)] = Nil
   ): BatchIntervalEsSink[RowData, util.Map[_, _]]= {
+    val extraCfg = mutable.HashMap[String, String](
+      ES_SERIALIZATION_WRITER_VALUE_CLASS -> classOf[JdkValueWriter].getName
+    )
+    if(updateScriptOrderBy.nonEmpty){
+      extraCfg ++= getUpdateScriptCfg(resolvedSchema.getColumns.asScala.map(_.getName), cfg, updateScriptOrderBy)
+    }
     val typeInformation: InternalTypeInfo[RowData] = InternalTypeInfo.of(resolvedSchema.toSourceRowDataType.getLogicalType)
     val fieldGetters = resolvedSchema.getColumns.asScala.zipWithIndex.map{ case (col, i) =>
       (i, col.getName , makeGetter(col.getDataType.getLogicalType))
     }
+    val _getKey = Utils.getTableKeyFunction(resolvedSchema,keyedMode,keys,orderBy)
+    val tableOrdering = Utils.getTableOrdering(resolvedSchema, orderBy)
 
     new BatchIntervalEsSink[RowData, util.Map[_, _]](
-      cfg ++ Map(ES_SERIALIZATION_WRITER_VALUE_CLASS -> classOf[JdkValueWriter].getName),
+      cfg ++ extraCfg,
       batchSize, batchIntervalMs, minPauseBetweenFlushMs){
       @transient var serializer: TypeSerializer[RowData] = _
       @transient var objectReuse = false
@@ -78,6 +105,18 @@ package object es {
         if(objectReuse) serializer.copy(data) else data
       }
 
+      override def getKey(data: RowData): Any = _getKey(data)
+
+      override def replaceValue(newValue: RowData, oldValue: RowData): RowData = if (!this.keyedMode) {
+        super.replaceValue(newValue, oldValue)
+      } else {
+        if (tableOrdering.gteq(newValue, oldValue)) {
+          newValue
+        } else {
+          oldValue
+        }
+      }
+
       def data2EsRecord(row: RowData): util.Map[_, _] = {
         map.clear()
         for ((i, name, fieldGetter) <- fieldGetters) {
@@ -92,6 +131,32 @@ package object es {
         map
       }
     }
+  }
+
+  def getUpdateScriptCfg(allCols:Seq[String], cfg: Map[String, String], updateScriptorderBy: Seq[(String, Boolean)]): Map[String, String] = {
+    assert(List("update", "upsert").contains(cfg(ES_WRITE_OPERATION)), "配置updateScriptorderBy必须在update,upsert模式下")
+    assert(!cfg.contains(ES_UPDATE_SCRIPT_INLINE), s"不能同时配置updateScriptorderBy和$ES_UPDATE_SCRIPT_INLINE")
+    val cols = allCols.filter(_ != cfg.getOrElse(ES_MAPPING_ID, ""))
+    assert(updateScriptorderBy.map(_._1).forall(cols.contains(_)), "updateScriptorderBy列不存在")
+    val condition = updateScriptorderBy.map{case (col, ascending) =>
+      if(ascending){
+        s"ctx._source.$col == null || ctx._source.$col < params.$col"
+      }else{
+        s"ctx._source.$col == null || ctx._source.$col > params.$col"
+      }
+    }.mkString(" || ")
+    val update = cols.map(col => s"ctx._source.$col = params.$col;").mkString(" ")
+    val params = cols.map(col => s"$col:$col").mkString(",")
+    val script = s"if($condition){$update}"
+
+    logWarning("gene script:" + script)
+    logWarning("gene params:" + params)
+
+    Map(
+      ES_UPDATE_SCRIPT_INLINE -> script,
+      ES_UPDATE_SCRIPT_PARAMS -> params,
+      ES_UPDATE_SCRIPT_LANG -> "painless"
+    )
   }
 
   val ignoreNullFields = false

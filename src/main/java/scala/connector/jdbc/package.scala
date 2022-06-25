@@ -11,8 +11,9 @@ import org.apache.flink.streaming.api.scala.DataStream
 import org.apache.flink.table.api.bridge.scala._
 import org.apache.flink.table.api.Table
 import org.apache.flink.table.catalog.ResolvedSchema
-import org.apache.flink.table.data.{GenericRowData, RowData}
+import org.apache.flink.table.data.RowData
 import org.apache.flink.table.runtime.typeutils.InternalTypeInfo
+import org.apache.flink.table.types.logical.LogicalType
 import org.apache.flink.table.types.logical.LogicalTypeRoot.{BIGINT, CHAR, DOUBLE, FLOAT, INTEGER, VARCHAR}
 
 import scala.collection.JavaConverters._
@@ -155,13 +156,16 @@ package object jdbc {
       batchIntervalMs: Long,
       minPauseBetweenFlushMs: Long = 100L,
       keyedMode: Boolean = false,
+      keys: Seq[String] = Nil,
+      orderBy: Seq[(String, Boolean)] = Nil,
       maxRetries: Int = 2,
       isUpdateMode: Boolean = true,
       oldValcols: Seq[String] = Nil,
       periodExecSqlStrategy: PeriodExecSqlStrategy = null
     ): DataStreamSink[RowData] = {
       val sink = getRowDataBatchIntervalJdbcSink(table.getResolvedSchema, tableName, connectionOptions, batchSize, batchIntervalMs,
-        minPauseBetweenFlushMs = minPauseBetweenFlushMs, keyedMode = keyedMode, maxRetries = maxRetries, isUpdateMode = isUpdateMode,
+        minPauseBetweenFlushMs = minPauseBetweenFlushMs, keyedMode = keyedMode, keys=keys, orderBy=orderBy,
+        maxRetries = maxRetries, isUpdateMode = isUpdateMode,
         oldValcols = oldValcols, periodExecSqlStrategy = periodExecSqlStrategy)
       val rowDataDs = table.toDataStream[RowData](table.getResolvedSchema.toSourceRowDataType.bridgedTo(classOf[RowData]))
       rowDataDs.addSink(sink)
@@ -187,38 +191,8 @@ package object jdbc {
     val fieldInfos = resolvedSchema.getColumns.asScala.map(col => (col.getName, col.getDataType)).toArray
     val cols = fieldInfos.map(_._1)
     val sql = geneFlinkJdbcSql(tableName, cols, oldValcols, isUpdateMode)
-    val _setters = fieldInfos.map { case (_, dataType) =>
-      val func: (PreparedStatement, RowData, Int) => Unit = dataType.getLogicalType.getTypeRoot match {
-        case CHAR | VARCHAR => (stmt, row, i) =>
-          stmt.setString(i + 1, row.getString(i).toString)
-        case INTEGER => (stmt, row, i) =>
-          stmt.setInt(i + 1, row.getInt(i))
-        case BIGINT => (stmt, row, i) =>
-          stmt.setLong(i + 1, row.getLong(i))
-        case FLOAT => (stmt, row, i) =>
-          stmt.setFloat(i + 1, row.getFloat(i))
-        case DOUBLE => (stmt, row, i) =>
-          stmt.setDouble(i + 1, row.getDouble(i))
-        case _ => throw new UnsupportedOperationException(s"unsupported data type $dataType")
-      }
-      func
-    }
-    if(keyedMode){
-      assert(keys.nonEmpty, "keyedMode下keys不能为空")
-    }
-    val colMap = resolvedSchema.getColumns.asScala.zipWithIndex.map { case (col, i) => (col.getName, (col, i)) }.toMap
-    val keyGetters = keys.map { colName =>
-      val (col, i) = colMap.getOrElse(colName, throw new Exception("不存在的列:" + colName))
-      val fieldGetter = RowData.createFieldGetter(col.getDataType.getLogicalType, i)
-      fieldGetter
-    }.toArray
-    val _getKey: RowData => Any = if (keyGetters.length == 0) {
-      null
-    } else if (keyGetters.length == 1) {
-      row => keyGetters(0).getFieldOrNull(row)
-    } else {
-      row => GenericRowData.of(keyGetters.map(_.getFieldOrNull(row)): _*)
-    }
+    val _setters = fieldInfos.map { case (_, dataType) => makeSetter(dataType.getLogicalType) }
+    val _getKey = Utils.getTableKeyFunction(resolvedSchema,keyedMode,keys,orderBy)
     val tableOrdering = Utils.getTableOrdering(resolvedSchema, orderBy)
 
     new BatchIntervalJdbcSink[RowData](connectionOptions, batchSize, batchIntervalMs, minPauseBetweenFlushMs,
@@ -242,7 +216,7 @@ package object jdbc {
         if (objectReuse) serializer.copy(data) else data
       }
 
-      override def getKey(data: RowData): Any = _getKey
+      override def getKey(data: RowData): Any = _getKey(data)
 
       override def replaceValue(newValue: RowData, oldValue: RowData): RowData = if (!this.keyedMode) {
         super.replaceValue(newValue, oldValue)
@@ -286,5 +260,19 @@ package object jdbc {
       s"INSERT INTO $tableName ($columns) VALUES ($placeholders)"
     }
     sql
+  }
+
+  def makeSetter(logicalType: LogicalType):(PreparedStatement, RowData, Int) => Unit = logicalType.getTypeRoot match {
+    case CHAR | VARCHAR => (stmt, row, i) =>
+      stmt.setString(i + 1, row.getString(i).toString)
+    case INTEGER => (stmt, row, i) =>
+      stmt.setInt(i + 1, row.getInt(i))
+    case BIGINT => (stmt, row, i) =>
+      stmt.setLong(i + 1, row.getLong(i))
+    case FLOAT => (stmt, row, i) =>
+      stmt.setFloat(i + 1, row.getFloat(i))
+    case DOUBLE => (stmt, row, i) =>
+      stmt.setDouble(i + 1, row.getDouble(i))
+    case _ => throw new UnsupportedOperationException(s"unsupported data type $logicalType")
   }
 }

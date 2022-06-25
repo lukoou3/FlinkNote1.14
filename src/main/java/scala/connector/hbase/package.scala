@@ -14,6 +14,7 @@ import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.util.Bytes
 
 import scala.collection.JavaConverters._
+import scala.connector.common.Utils
 
 package object hbase {
   type HbaseType = Array[Byte]
@@ -30,11 +31,15 @@ package object hbase {
       onlyStringCol:Boolean = true,
       batchSize: Int = 500,
       batchIntervalMs: Long = 1000L,
-      minPauseBetweenFlushMs: Long = 100L
+      minPauseBetweenFlushMs: Long = 100L,
+      keyedMode: Boolean = false,
+      keys: Seq[String] = Nil,
+      orderBy: Seq[(String, Boolean)] = Nil
     ): DataStreamSink[RowData] = {
       val sink = getRowDataBatchIntervalHbaseSink(table.getResolvedSchema, hbaseConf, tableName, cf,
         rowKey=rowKey, qualifiers=qualifiers, fieldColMap=fieldColMap,onlyStringCol=onlyStringCol,
-        batchSize=batchSize, batchIntervalMs=batchIntervalMs, minPauseBetweenFlushMs=minPauseBetweenFlushMs)
+        batchSize=batchSize, batchIntervalMs=batchIntervalMs, minPauseBetweenFlushMs=minPauseBetweenFlushMs,
+        keyedMode=keyedMode,keys=keys,orderBy=orderBy)
       val rowDataDs = table.toDataStream[RowData](table.getResolvedSchema.toSourceRowDataType.bridgedTo(classOf[RowData]))
       rowDataDs.addSink(sink)
     }
@@ -51,7 +56,10 @@ package object hbase {
     onlyStringCol:Boolean = true,
     batchSize: Int = 500,
     batchIntervalMs: Long = 1000L,
-    minPauseBetweenFlushMs: Long = 100L
+    minPauseBetweenFlushMs: Long = 100L,
+    keyedMode: Boolean = false,
+    keys: Seq[String] = Nil,
+    orderBy: Seq[(String, Boolean)] = Nil
   ): BatchIntervalHbaseSink[RowData] = {
     val typeInformation: InternalTypeInfo[RowData] = InternalTypeInfo.of(resolvedSchema.toSourceRowDataType.getLogicalType)
     val family = Bytes.toBytes(cf)
@@ -70,6 +78,8 @@ package object hbase {
       assert(!onlyStringCol || Seq(CHAR, VARCHAR).contains(logicalType.getTypeRoot), "只支持string列模式")
       (family, Bytes.toBytes(fieldColMap.getOrElse(name, name)), makeGetter(logicalType, i))
     }
+    val _getKey = Utils.getTableKeyFunction(resolvedSchema,keyedMode,keys,orderBy)
+    val tableOrdering = Utils.getTableOrdering(resolvedSchema, orderBy)
 
     new BatchIntervalHbaseSink[RowData](hbaseConf, tableName, batchSize, batchIntervalMs, minPauseBetweenFlushMs){
       @transient var serializer: TypeSerializer[RowData] = _
@@ -85,6 +95,18 @@ package object hbase {
 
       override def valueTransform(data: RowData): RowData = {
         if(objectReuse) serializer.copy(data) else data
+      }
+
+      override def getKey(data: RowData): Any = _getKey(data)
+
+      override def replaceValue(newValue: RowData, oldValue: RowData): RowData = if (!this.keyedMode) {
+        super.replaceValue(newValue, oldValue)
+      } else {
+        if (tableOrdering.gteq(newValue, oldValue)) {
+          newValue
+        } else {
+          oldValue
+        }
       }
 
       override def data2EsPut(row: RowData): Put = {

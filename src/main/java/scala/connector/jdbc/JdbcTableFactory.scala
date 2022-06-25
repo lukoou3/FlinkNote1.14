@@ -8,6 +8,7 @@ import org.apache.flink.table.connector.sink.DynamicTableSink
 import org.apache.flink.table.factories.{DynamicTableFactory, DynamicTableSinkFactory, FactoryUtil}
 
 import JdbcTableFactory._
+import scala.connector.common.Utils.StringCfgOps
 
 class JdbcTableFactory extends DynamicTableSinkFactory{
 
@@ -24,7 +25,10 @@ class JdbcTableFactory extends DynamicTableSinkFactory{
       config.get(SINK_BATCH_SIZE),
       config.get(SINK_BATCH_INTERVAL).toMillis,
       config.get(SINK_MAX_RETRIES),
-      config.get(SINK_UPDATE_MODE)
+      config.get(SINK_UPDATE_MODE),
+      config.get(SINK_KEYED_MODE),
+      config.get(SINK_KEYED_MODE_KEYS).toSinkKeyedModeKeys,
+      config.get(SINK_KEYED_MODE_ORDERBY).toSinkKeyedModeOrderBy
     )
   }
 
@@ -43,6 +47,9 @@ class JdbcTableFactory extends DynamicTableSinkFactory{
     requiredOptions.add(SINK_BATCH_INTERVAL)
     requiredOptions.add(SINK_MAX_RETRIES)
     requiredOptions.add(SINK_UPDATE_MODE)
+    requiredOptions.add(SINK_KEYED_MODE)
+    requiredOptions.add(SINK_KEYED_MODE_KEYS)
+    requiredOptions.add(SINK_KEYED_MODE_ORDERBY)
     optionalOptions
   }
 }
@@ -54,4 +61,7 @@ object JdbcTableFactory{
   val SINK_BATCH_INTERVAL = ConfigOptions.key("sink.batch.interval") .durationType() .defaultValue(Duration.ofSeconds(5))
   val SINK_MAX_RETRIES = ConfigOptions.key("sink.max-retries") .intType().defaultValue(2)
   val SINK_UPDATE_MODE = ConfigOptions.key("sink.update.mode").booleanType.defaultValue(true)
+  val SINK_KEYED_MODE = ConfigOptions.key("sink.keyed.mode").booleanType.defaultValue(false)
+  val SINK_KEYED_MODE_KEYS = ConfigOptions.key("sink.keyed.mode.keys").stringType().defaultValue("")
+  val SINK_KEYED_MODE_ORDERBY = ConfigOptions.key("sink.keyed.mode.orderby").stringType().defaultValue("")
 }
