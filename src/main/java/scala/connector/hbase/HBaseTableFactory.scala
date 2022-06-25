@@ -10,8 +10,6 @@ import org.apache.flink.table.factories.{DynamicTableFactory, DynamicTableSinkFa
 import org.apache.flink.table.utils.TableSchemaUtils
 
 import HBaseTableFactory._
-import scala.connector.es.EsTableFactory.{CLUSTER_NAME, RESOURCE, SINK_BATCH_INTERVAL, SINK_BATCH_SIZE, SINK_KEYED_MODE, SINK_KEYED_MODE_ORDERBY, SINK_KEYED_MODE_SCRIPT_ORDERBY}
-import scala.connector.es.EsTableSink
 import scala.connector.jdbc.JdbcTableFactory.SINK_KEYED_MODE_KEYS
 import scala.connector.common.Utils.StringCfgOps
 
@@ -51,17 +49,17 @@ class HBaseTableFactory extends DynamicTableSourceFactory with DynamicTableSinkF
 
     helper.validate()
 
-    new EsTableSink(
+    new HbaseTableSink(
       context.getCatalogTable.getResolvedSchema,
-      config.get(CLUSTER_NAME),
-      config.get(RESOURCE),
-      cfg,
-      config.get(SINK_BATCH_SIZE),
-      config.get(SINK_BATCH_INTERVAL).toMillis,
+      hbaseParames.getOrElse(config.get(HBASE_INSTANCE), Map.empty),
+      config.get(TABLE_NAME),
+      config.get(CF),
+      
+      batchSize = config.get(SINK_BATCH_SIZE),
+      batchIntervalMs = config.get(SINK_BATCH_INTERVAL).toMillis,
       keyedMode = config.get(SINK_KEYED_MODE),
       keys = config.get(SINK_KEYED_MODE_KEYS).toSinkKeyedModeKeys,
-      orderBy = config.get(SINK_KEYED_MODE_ORDERBY).toSinkKeyedModeOrderBy,
-      updateScriptOrderBy = config.get(SINK_KEYED_MODE_SCRIPT_ORDERBY).toSinkKeyedModeOrderBy
+      orderBy = config.get(SINK_KEYED_MODE_ORDERBY).toSinkKeyedModeOrderBy
     )
   }
 
