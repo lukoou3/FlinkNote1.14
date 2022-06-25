@@ -8,13 +8,14 @@ import org.apache.flink.table.connector.sink.DynamicTableSink
 import org.apache.flink.table.connector.source.DynamicTableSource
 import org.apache.flink.table.factories.{DynamicTableFactory, DynamicTableSinkFactory, DynamicTableSourceFactory, FactoryUtil}
 import org.apache.flink.table.utils.TableSchemaUtils
+import org.elasticsearch.hadoop.cfg.ConfigurationOptions.{ES_MAPPING_EXCLUDE, ES_NET_HTTP_AUTH_PASS, ES_NET_HTTP_AUTH_USER, ES_NODES, ES_RESOURCE_WRITE}
 
 import scala.collection.JavaConverters._
 import EsTableFactory._
 import scala.connector.jdbc.JdbcTableFactory.SINK_KEYED_MODE_KEYS
 import scala.connector.common.Utils.StringCfgOps
 
-class EsTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFactory{
+class EsTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFactory {
   def factoryIdentifier(): String = "myes"
 
   def createDynamicTableSource(context: DynamicTableFactory.Context): DynamicTableSource = {
@@ -36,21 +37,32 @@ class EsTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFact
 
     val cfg = context.getCatalogTable().getOptions().asScala.filter(_._1.startsWith("es.")).toMap
 
+    val clusterName = config.get(CLUSTER_NAME)
+    val resource = config.get(RESOURCE)
+    val (nodes, user, password) = esParmas(clusterName)
+    val rstCfg = Map[String, String](
+      ES_NODES -> nodes,
+      ES_RESOURCE_WRITE -> resource,
+      ES_MAPPING_EXCLUDE -> "_id"
+    ) ++ {
+      if (user.nonEmpty) Map(ES_NET_HTTP_AUTH_USER -> user.get, ES_NET_HTTP_AUTH_PASS -> password.get) else Map.empty
+    } ++ cfg
+
     new EsTableSink(
       context.getCatalogTable.getResolvedSchema,
-      config.get(CLUSTER_NAME),
-      config.get(RESOURCE),
-      cfg,
-      config.get(SINK_BATCH_SIZE),
-      config.get(SINK_BATCH_INTERVAL).toMillis,
-      keyedMode = config.get(SINK_KEYED_MODE),
-      keys = config.get(SINK_KEYED_MODE_KEYS).toSinkKeyedModeKeys,
-      orderBy = config.get(SINK_KEYED_MODE_ORDERBY).toSinkKeyedModeOrderBy,
-      updateScriptOrderBy = config.get(SINK_KEYED_MODE_SCRIPT_ORDERBY).toSinkKeyedModeOrderBy
+      EsSinkParams(
+        rstCfg,
+        config.get(SINK_BATCH_SIZE),
+        config.get(SINK_BATCH_INTERVAL).toMillis,
+        keyedMode = config.get(SINK_KEYED_MODE),
+        keys = config.get(SINK_KEYED_MODE_KEYS).toSinkKeyedModeKeys,
+        orderBy = config.get(SINK_KEYED_MODE_ORDERBY).toSinkKeyedModeOrderBy,
+        updateScriptOrderBy = config.get(SINK_KEYED_MODE_SCRIPT_ORDERBY).toSinkKeyedModeOrderBy
+      )
     )
   }
 
-  def validateRequiredOptions(config: ReadableConfig): Unit ={
+  def validateRequiredOptions(config: ReadableConfig): Unit = {
     for (option <- requiredOptions().asScala) {
       assert(config.get(option) != null, option.key() + "参数必须设置")
     }
@@ -69,11 +81,11 @@ class EsTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFact
   }
 }
 
-object EsTableFactory{
+object EsTableFactory {
   val CLUSTER_NAME = ConfigOptions.key("cluster-name").stringType().noDefaultValue()
   val RESOURCE = ConfigOptions.key("resource").stringType().noDefaultValue()
-  val SINK_BATCH_SIZE = ConfigOptions.key("sink.batch.size") .intType().defaultValue(200)
-  val SINK_BATCH_INTERVAL = ConfigOptions.key("sink.batch.interval") .durationType() .defaultValue(Duration.ofSeconds(5))
+  val SINK_BATCH_SIZE = ConfigOptions.key("sink.batch.size").intType().defaultValue(200)
+  val SINK_BATCH_INTERVAL = ConfigOptions.key("sink.batch.interval").durationType().defaultValue(Duration.ofSeconds(5))
   val SINK_KEYED_MODE = ConfigOptions.key("sink.keyed.mode").booleanType.defaultValue(false)
   val SINK_KEYED_MODE_KEYS = ConfigOptions.key("sink.keyed.mode.keys").stringType().defaultValue("")
   val SINK_KEYED_MODE_ORDERBY = ConfigOptions.key("sink.keyed.mode.orderby").stringType().defaultValue("")

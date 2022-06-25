@@ -22,31 +22,15 @@ package object hbase {
 
   implicit class TableFunctions(table: Table){
     def addRowDataBatchIntervalEsSink(
-      hbaseConf: Map[String, String],
-      tableName: String,
-      cf: String,
-      rowKey: String = "rowkey",
-      qualifiers: Seq[String] = Nil,
-      fieldColMap: Map[String, String] = Map.empty,
-      onlyStringCol:Boolean = true,
-      batchSize: Int = 500,
-      batchIntervalMs: Long = 1000L,
-      minPauseBetweenFlushMs: Long = 100L,
-      keyedMode: Boolean = false,
-      keys: Seq[String] = Nil,
-      orderBy: Seq[(String, Boolean)] = Nil
+      params: HbaseSinkParams
     ): DataStreamSink[RowData] = {
-      val sink = getRowDataBatchIntervalHbaseSink(table.getResolvedSchema, hbaseConf, tableName, cf,
-        rowKey=rowKey, qualifiers=qualifiers, fieldColMap=fieldColMap,onlyStringCol=onlyStringCol,
-        batchSize=batchSize, batchIntervalMs=batchIntervalMs, minPauseBetweenFlushMs=minPauseBetweenFlushMs,
-        keyedMode=keyedMode,keys=keys,orderBy=orderBy)
+      val sink = getRowDataBatchIntervalHbaseSink(table.getResolvedSchema, params)
       val rowDataDs = table.toDataStream[RowData](table.getResolvedSchema.toSourceRowDataType.bridgedTo(classOf[RowData]))
       rowDataDs.addSink(sink)
     }
   }
 
-  def getRowDataBatchIntervalHbaseSink(
-    resolvedSchema: ResolvedSchema,
+  case class HbaseSinkParams(
     hbaseConf: Map[String, String],
     tableName: String,
     cf: String,
@@ -60,13 +44,19 @@ package object hbase {
     keyedMode: Boolean = false,
     keys: Seq[String] = Nil,
     orderBy: Seq[(String, Boolean)] = Nil
+  )
+
+  def getRowDataBatchIntervalHbaseSink(
+    resolvedSchema: ResolvedSchema,
+    params: HbaseSinkParams
   ): BatchIntervalHbaseSink[RowData] = {
     val typeInformation: InternalTypeInfo[RowData] = InternalTypeInfo.of(resolvedSchema.toSourceRowDataType.getLogicalType)
-    val family = Bytes.toBytes(cf)
-    if(qualifiers.nonEmpty){
-      assert(resolvedSchema.getColumns.asScala.map(col => fieldColMap.getOrElse(col.getName, col.getName)).filter(rowKey != _).forall(qualifiers.contains(_)), s"列名必须在${qualifiers}中")
+    val family = Bytes.toBytes(params.cf)
+    if(params.qualifiers.nonEmpty){
+      assert(resolvedSchema.getColumns.asScala.map(col => params.fieldColMap.getOrElse(col.getName, col.getName))
+        .filter(params.rowKey != _).forall(params.qualifiers.contains(_)), s"列名必须在${params.qualifiers}中")
     }
-    val (rkFields, colFields) = resolvedSchema.getColumns.asScala.zipWithIndex.partition(rowKey == _._1.getName)
+    val (rkFields, colFields) = resolvedSchema.getColumns.asScala.zipWithIndex.partition(params.rowKey == _._1.getName)
     val rkFieldGetter = rkFields.map{ case(col, i) =>
       val logicalType = col.getDataType.getLogicalType
       assert(Seq(CHAR, VARCHAR, BINARY).contains(logicalType.getTypeRoot), "rowkey col必须是string或者字节数组")
@@ -75,13 +65,13 @@ package object hbase {
     val colFieldGetters = colFields.map{ case(col, i) =>
       val name = col.getName
       val logicalType = col.getDataType.getLogicalType
-      assert(!onlyStringCol || Seq(CHAR, VARCHAR).contains(logicalType.getTypeRoot), "只支持string列模式")
-      (family, Bytes.toBytes(fieldColMap.getOrElse(name, name)), makeGetter(logicalType, i))
+      assert(!params.onlyStringCol || Seq(CHAR, VARCHAR).contains(logicalType.getTypeRoot), "只支持string列模式")
+      (family, Bytes.toBytes(params.fieldColMap.getOrElse(name, name)), makeGetter(logicalType, i))
     }
-    val _getKey = Utils.getTableKeyFunction(resolvedSchema,keyedMode,keys,orderBy)
-    val tableOrdering = Utils.getTableOrdering(resolvedSchema, orderBy)
+    val _getKey = Utils.getTableKeyFunction(resolvedSchema,params.keyedMode,params.keys,params.orderBy)
+    val tableOrdering = Utils.getTableOrdering(resolvedSchema, params.orderBy)
 
-    new BatchIntervalHbaseSink[RowData](hbaseConf, tableName, batchSize, batchIntervalMs, minPauseBetweenFlushMs){
+    new BatchIntervalHbaseSink[RowData](params.hbaseConf, params.tableName, params.batchSize, params.batchIntervalMs, params.minPauseBetweenFlushMs){
       @transient var serializer: TypeSerializer[RowData] = _
       @transient var objectReuse = false
 

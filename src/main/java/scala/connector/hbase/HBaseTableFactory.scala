@@ -13,7 +13,7 @@ import HBaseTableFactory._
 import scala.connector.jdbc.JdbcTableFactory.SINK_KEYED_MODE_KEYS
 import scala.connector.common.Utils.StringCfgOps
 
-class HBaseTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFactory{
+class HBaseTableFactory extends DynamicTableSourceFactory with DynamicTableSinkFactory {
 
   def createDynamicTableSource(context: DynamicTableFactory.Context): DynamicTableSource = {
     val helper = FactoryUtil.createTableFactoryHelper(this, context)
@@ -23,11 +23,11 @@ class HBaseTableFactory extends DynamicTableSourceFactory with DynamicTableSinkF
 
     val physicalSchema = TableSchemaUtils.getPhysicalSchema(context.getCatalogTable.getSchema)
 
-    val fieldMap =  config.get(FIELDS).split(",").flatMap{ text =>
+    val fieldMap = config.get(FIELDS).split(",").flatMap { text =>
       val kv = text.trim.split(":")
-      if(kv.length == 2){
+      if (kv.length == 2) {
         Some((kv(0).trim, kv(1).trim))
-      }else{
+      } else {
         None
       }
     }.toMap
@@ -51,15 +51,16 @@ class HBaseTableFactory extends DynamicTableSourceFactory with DynamicTableSinkF
 
     new HbaseTableSink(
       context.getCatalogTable.getResolvedSchema,
-      hbaseParames.getOrElse(config.get(HBASE_INSTANCE), Map.empty),
-      config.get(TABLE_NAME),
-      config.get(CF),
-      
-      batchSize = config.get(SINK_BATCH_SIZE),
-      batchIntervalMs = config.get(SINK_BATCH_INTERVAL).toMillis,
-      keyedMode = config.get(SINK_KEYED_MODE),
-      keys = config.get(SINK_KEYED_MODE_KEYS).toSinkKeyedModeKeys,
-      orderBy = config.get(SINK_KEYED_MODE_ORDERBY).toSinkKeyedModeOrderBy
+      HbaseSinkParams(
+        hbaseParames.getOrElse(config.get(HBASE_INSTANCE), Map.empty),
+        config.get(TABLE_NAME),
+        config.get(CF),
+        batchSize = config.get(SINK_BATCH_SIZE),
+        batchIntervalMs = config.get(SINK_BATCH_INTERVAL).toMillis,
+        keyedMode = config.get(SINK_KEYED_MODE),
+        keys = config.get(SINK_KEYED_MODE_KEYS).toSinkKeyedModeKeys,
+        orderBy = config.get(SINK_KEYED_MODE_ORDERBY).toSinkKeyedModeOrderBy
+      )
     )
   }
 
@@ -87,15 +88,15 @@ class HBaseTableFactory extends DynamicTableSourceFactory with DynamicTableSinkF
   }
 }
 
-object HBaseTableFactory{
+object HBaseTableFactory {
   val TABLE_NAME = ConfigOptions.key("table-name").stringType().noDefaultValue()
   val CF = ConfigOptions.key("cf").stringType().noDefaultValue()
   val FIELDS = ConfigOptions.key("fields").stringType().noDefaultValue()
   val HBASE_INSTANCE = ConfigOptions.key("hbase-instance").stringType().defaultValue("")
-  val LOOKUP_CACHE_MAX_ROWS = ConfigOptions.key("lookup.cache.max-rows") .intType().defaultValue(-1)
-  val LOOKUP_CACHE_TTL = ConfigOptions.key("lookup.cache.ttl") .durationType() .defaultValue(Duration.ofSeconds(10))
-  val SINK_BATCH_SIZE = ConfigOptions.key("sink.batch.size") .intType().defaultValue(200)
-  val SINK_BATCH_INTERVAL = ConfigOptions.key("sink.batch.interval") .durationType() .defaultValue(Duration.ofSeconds(5))
+  val LOOKUP_CACHE_MAX_ROWS = ConfigOptions.key("lookup.cache.max-rows").intType().defaultValue(-1)
+  val LOOKUP_CACHE_TTL = ConfigOptions.key("lookup.cache.ttl").durationType().defaultValue(Duration.ofSeconds(10))
+  val SINK_BATCH_SIZE = ConfigOptions.key("sink.batch.size").intType().defaultValue(200)
+  val SINK_BATCH_INTERVAL = ConfigOptions.key("sink.batch.interval").durationType().defaultValue(Duration.ofSeconds(5))
   val SINK_KEYED_MODE = ConfigOptions.key("sink.keyed.mode").booleanType.defaultValue(false)
   val SINK_KEYED_MODE_KEYS = ConfigOptions.key("sink.keyed.mode.keys").stringType().defaultValue("")
   val SINK_KEYED_MODE_ORDERBY = ConfigOptions.key("sink.keyed.mode.orderby").stringType().defaultValue("")

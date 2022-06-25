@@ -23,7 +23,7 @@ import scala.collection.mutable
 import scala.connector.common.Utils
 import scala.log.Logging
 
-package object es extends Logging{
+package object es extends Logging {
 
   implicit class ProductDataStreamEsFunctions[T <: Product : TypeInformation](ds: DataStream[T]) {
     def addBatchIntervalEsSink(
@@ -35,35 +35,26 @@ package object es extends Logging{
     ): DataStreamSink[T] = {
       val productTypeInformation = implicitly[TypeInformation[T]].asInstanceOf[CaseClassTypeInfo[T]]
       val extraCfg = mutable.HashMap[String, String]()
-      if(updateScriptOrderBy.nonEmpty){
+      if (updateScriptOrderBy.nonEmpty) {
         extraCfg ++= getUpdateScriptCfg(productTypeInformation.fieldNames, cfg, updateScriptOrderBy)
       }
-      ds.addSink(new BatchIntervalEsSink[T, T](cfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs){
+      ds.addSink(new BatchIntervalEsSink[T, T](cfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs) {
         def data2EsRecord(data: T): T = data
       })
     }
   }
 
-  implicit class TableFunctions(table: Table){
+  implicit class TableFunctions(table: Table) {
     def addRowDataBatchIntervalEsSink(
-      cfg: Map[String, String],
-      batchSize: Int,
-      batchIntervalMs: Long,
-      minPauseBetweenFlushMs: Long = 100L,
-      keyedMode: Boolean = false,
-      keys: Seq[String] = Nil,
-      orderBy: Seq[(String, Boolean)] = Nil,
-      updateScriptOrderBy: Seq[(String, Boolean)] = Nil
+      params: EsSinkParams
     ): DataStreamSink[RowData] = {
-      val sink = getRowDataBatchIntervalEsSink(table.getResolvedSchema, cfg, batchSize, batchIntervalMs, minPauseBetweenFlushMs,
-        keyedMode=keyedMode,keys=keys,orderBy=orderBy, updateScriptOrderBy=updateScriptOrderBy)
+      val sink = getRowDataBatchIntervalEsSink(table.getResolvedSchema, params)
       val rowDataDs = table.toDataStream[RowData](table.getResolvedSchema.toSourceRowDataType.bridgedTo(classOf[RowData]))
       rowDataDs.addSink(sink)
     }
   }
 
-  def getRowDataBatchIntervalEsSink(
-    resolvedSchema: ResolvedSchema,
+  case class EsSinkParams(
     cfg: Map[String, String],
     batchSize: Int,
     batchIntervalMs: Long,
@@ -72,23 +63,26 @@ package object es extends Logging{
     keys: Seq[String] = Nil,
     orderBy: Seq[(String, Boolean)] = Nil,
     updateScriptOrderBy: Seq[(String, Boolean)] = Nil
-  ): BatchIntervalEsSink[RowData, util.Map[_, _]]= {
+  )
+
+  def getRowDataBatchIntervalEsSink(
+    resolvedSchema: ResolvedSchema,
+    params: EsSinkParams
+  ): BatchIntervalEsSink[RowData, util.Map[_, _]] = {
     val extraCfg = mutable.HashMap[String, String](
       ES_SERIALIZATION_WRITER_VALUE_CLASS -> classOf[JdkValueWriter].getName
     )
-    if(updateScriptOrderBy.nonEmpty){
-      extraCfg ++= getUpdateScriptCfg(resolvedSchema.getColumns.asScala.map(_.getName), cfg, updateScriptOrderBy)
+    if (params.updateScriptOrderBy.nonEmpty) {
+      extraCfg ++= getUpdateScriptCfg(resolvedSchema.getColumns.asScala.map(_.getName), params.cfg, params.updateScriptOrderBy)
     }
     val typeInformation: InternalTypeInfo[RowData] = InternalTypeInfo.of(resolvedSchema.toSourceRowDataType.getLogicalType)
-    val fieldGetters = resolvedSchema.getColumns.asScala.zipWithIndex.map{ case (col, i) =>
-      (i, col.getName , makeGetter(col.getDataType.getLogicalType))
+    val fieldGetters = resolvedSchema.getColumns.asScala.zipWithIndex.map { case (col, i) =>
+      (i, col.getName, makeGetter(col.getDataType.getLogicalType))
     }
-    val _getKey = Utils.getTableKeyFunction(resolvedSchema,keyedMode,keys,orderBy)
-    val tableOrdering = Utils.getTableOrdering(resolvedSchema, orderBy)
+    val _getKey = Utils.getTableKeyFunction(resolvedSchema, params.keyedMode, params.keys, params.orderBy)
+    val tableOrdering = Utils.getTableOrdering(resolvedSchema, params.orderBy)
 
-    new BatchIntervalEsSink[RowData, util.Map[_, _]](
-      cfg ++ extraCfg,
-      batchSize, batchIntervalMs, minPauseBetweenFlushMs){
+    new BatchIntervalEsSink[RowData, util.Map[_, _]](params.cfg ++ extraCfg, params.batchSize, params.batchIntervalMs, params.minPauseBetweenFlushMs) {
       @transient var serializer: TypeSerializer[RowData] = _
       @transient var objectReuse = false
       lazy val map = new util.HashMap[String, Any]()
@@ -96,13 +90,13 @@ package object es extends Logging{
       override def onInit(parameters: Configuration): Unit = {
         super.onInit(parameters)
         objectReuse = getRuntimeContext.getExecutionConfig.isObjectReuseEnabled
-        if(objectReuse){
+        if (objectReuse) {
           serializer = typeInformation.createSerializer(getRuntimeContext.getExecutionConfig)
         }
       }
 
       override def valueTransform(data: RowData): RowData = {
-        if(objectReuse) serializer.copy(data) else data
+        if (objectReuse) serializer.copy(data) else data
       }
 
       override def getKey(data: RowData): Any = _getKey(data)
@@ -120,9 +114,9 @@ package object es extends Logging{
       def data2EsRecord(row: RowData): util.Map[_, _] = {
         map.clear()
         for ((i, name, fieldGetter) <- fieldGetters) {
-          if(!row.isNullAt(i)){
+          if (!row.isNullAt(i)) {
             map.put(name, fieldGetter(row, i))
-          }else if (!ignoreNullFields) {
+          } else if (!ignoreNullFields) {
             map.put(name, null)
           }
 
@@ -133,15 +127,15 @@ package object es extends Logging{
     }
   }
 
-  def getUpdateScriptCfg(allCols:Seq[String], cfg: Map[String, String], updateScriptorderBy: Seq[(String, Boolean)]): Map[String, String] = {
+  def getUpdateScriptCfg(allCols: Seq[String], cfg: Map[String, String], updateScriptorderBy: Seq[(String, Boolean)]): Map[String, String] = {
     assert(List("update", "upsert").contains(cfg(ES_WRITE_OPERATION)), "配置updateScriptorderBy必须在update,upsert模式下")
     assert(!cfg.contains(ES_UPDATE_SCRIPT_INLINE), s"不能同时配置updateScriptorderBy和$ES_UPDATE_SCRIPT_INLINE")
     val cols = allCols.filter(_ != cfg.getOrElse(ES_MAPPING_ID, ""))
     assert(updateScriptorderBy.map(_._1).forall(cols.contains(_)), "updateScriptorderBy列不存在")
-    val condition = updateScriptorderBy.map{case (col, ascending) =>
-      if(ascending){
+    val condition = updateScriptorderBy.map { case (col, ascending) =>
+      if (ascending) {
         s"ctx._source.$col == null || ctx._source.$col < params.$col"
-      }else{
+      } else {
         s"ctx._source.$col == null || ctx._source.$col > params.$col"
       }
     }.mkString(" || ")

@@ -150,30 +150,15 @@ package object jdbc {
 
   implicit class TableFunctions(table: Table) {
     def addRowDataBatchIntervalJdbcSink(
-      tableName: String,
-      connectionOptions: JdbcConnectionOptions,
-      batchSize: Int,
-      batchIntervalMs: Long,
-      minPauseBetweenFlushMs: Long = 100L,
-      keyedMode: Boolean = false,
-      keys: Seq[String] = Nil,
-      orderBy: Seq[(String, Boolean)] = Nil,
-      maxRetries: Int = 2,
-      isUpdateMode: Boolean = true,
-      oldValcols: Seq[String] = Nil,
-      periodExecSqlStrategy: PeriodExecSqlStrategy = null
+      params: JdbcSinkParams
     ): DataStreamSink[RowData] = {
-      val sink = getRowDataBatchIntervalJdbcSink(table.getResolvedSchema, tableName, connectionOptions, batchSize, batchIntervalMs,
-        minPauseBetweenFlushMs = minPauseBetweenFlushMs, keyedMode = keyedMode, keys=keys, orderBy=orderBy,
-        maxRetries = maxRetries, isUpdateMode = isUpdateMode,
-        oldValcols = oldValcols, periodExecSqlStrategy = periodExecSqlStrategy)
+      val sink = getRowDataBatchIntervalJdbcSink(table.getResolvedSchema, params)
       val rowDataDs = table.toDataStream[RowData](table.getResolvedSchema.toSourceRowDataType.bridgedTo(classOf[RowData]))
       rowDataDs.addSink(sink)
     }
   }
 
-  def getRowDataBatchIntervalJdbcSink(
-    resolvedSchema: ResolvedSchema,
+  case class JdbcSinkParams(
     tableName: String,
     connectionOptions: JdbcConnectionOptions,
     batchSize: Int,
@@ -186,17 +171,23 @@ package object jdbc {
     isUpdateMode: Boolean = true,
     oldValcols: Seq[String] = Nil,
     periodExecSqlStrategy: PeriodExecSqlStrategy = null
+  )
+
+
+  def getRowDataBatchIntervalJdbcSink(
+    resolvedSchema: ResolvedSchema,
+    params: JdbcSinkParams
   ): BatchIntervalJdbcSink[RowData] = {
     val typeInformation: InternalTypeInfo[RowData] = InternalTypeInfo.of(resolvedSchema.toSourceRowDataType.getLogicalType)
     val fieldInfos = resolvedSchema.getColumns.asScala.map(col => (col.getName, col.getDataType)).toArray
     val cols = fieldInfos.map(_._1)
-    val sql = geneFlinkJdbcSql(tableName, cols, oldValcols, isUpdateMode)
+    val sql = geneFlinkJdbcSql(params.tableName, cols, params.oldValcols, params.isUpdateMode)
     val _setters = fieldInfos.map { case (_, dataType) => makeSetter(dataType.getLogicalType) }
-    val _getKey = Utils.getTableKeyFunction(resolvedSchema,keyedMode,keys,orderBy)
-    val tableOrdering = Utils.getTableOrdering(resolvedSchema, orderBy)
+    val _getKey = Utils.getTableKeyFunction(resolvedSchema,params.keyedMode,params.keys,params.orderBy)
+    val tableOrdering = Utils.getTableOrdering(resolvedSchema, params.orderBy)
 
-    new BatchIntervalJdbcSink[RowData](connectionOptions, batchSize, batchIntervalMs, minPauseBetweenFlushMs,
-      keyedMode, maxRetries, periodExecSqlStrategy) {
+    new BatchIntervalJdbcSink[RowData](params.connectionOptions, params.batchSize, params.batchIntervalMs, params.minPauseBetweenFlushMs,
+      params.keyedMode, params.maxRetries, params.periodExecSqlStrategy) {
       val setters = _setters
       val numFields = setters.length
       @transient var serializer: TypeSerializer[RowData] = _
