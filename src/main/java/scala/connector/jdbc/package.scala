@@ -183,7 +183,7 @@ package object jdbc {
     val cols = fieldInfos.map(_._1)
     val sql = geneFlinkJdbcSql(params.tableName, cols, params.oldValcols, params.isUpdateMode)
     val _setters = fieldInfos.map { case (_, dataType) => makeSetter(dataType.getLogicalType) }
-    val _getKey = Utils.getTableKeyFunction(resolvedSchema,params.keyedMode,params.keys,params.orderBy)
+    val _getKey = Utils.getTableKeyFunction(resolvedSchema,params.keyedMode,params.keys)
     val tableOrdering = Utils.getTableOrdering(resolvedSchema, params.orderBy)
 
     new BatchIntervalJdbcSink[RowData](params.connectionOptions, params.batchSize, params.batchIntervalMs, params.minPauseBetweenFlushMs,

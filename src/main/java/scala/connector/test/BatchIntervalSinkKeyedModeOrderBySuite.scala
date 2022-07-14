@@ -219,7 +219,7 @@ object BatchIntervalSinkKeyedModeOrderBySuite{
     val typeInformation: InternalTypeInfo[RowData] = InternalTypeInfo.of(rowType)
     val jsonSerializer = new JsonRowDataSerializationSchema(
       rowType.asInstanceOf[RowType], TimestampFormat.SQL, JsonFormatOptions.MapNullKeyMode.FAIL, "null", true)
-    val _getKey = Utils.getTableKeyFunction(resolvedSchema,keyedMode,keys,orderBy)
+    val _getKey = Utils.getTableKeyFunction(resolvedSchema,keyedMode,keys)
     val tableOrdering = Utils.getTableOrdering(resolvedSchema, orderBy)
     new BatchIntervalSink[RowData](batchSize, batchIntervalMs, minPauseBetweenFlushMs, keyedMode){
       @transient var serializer: TypeSerializer[RowData] = _

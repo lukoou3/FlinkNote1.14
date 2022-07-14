@@ -34,7 +34,7 @@ object Utils {
 
   }
 
-  def getTableKeyFunction(resolvedSchema: ResolvedSchema, keyedMode: Boolean, keys: Seq[String], orderBy: Seq[(String, Boolean)]): RowData => Any ={
+  def getTableKeyFunction(resolvedSchema: ResolvedSchema, keyedMode: Boolean, keys: Seq[String]): RowData => Any ={
     if(keyedMode){
       assert(keys.nonEmpty, "keyedMode下keys不能为空")
     }

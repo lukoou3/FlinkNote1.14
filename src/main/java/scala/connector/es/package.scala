@@ -79,7 +79,7 @@ package object es extends Logging {
     val fieldGetters = resolvedSchema.getColumns.asScala.zipWithIndex.map { case (col, i) =>
       (i, col.getName, makeGetter(col.getDataType.getLogicalType))
     }
-    val _getKey = Utils.getTableKeyFunction(resolvedSchema, params.keyedMode, params.keys, params.orderBy)
+    val _getKey = Utils.getTableKeyFunction(resolvedSchema, params.keyedMode, params.keys)
     val tableOrdering = Utils.getTableOrdering(resolvedSchema, params.orderBy)
 
     new BatchIntervalEsSink[RowData, util.Map[_, _]](params.cfg ++ extraCfg, params.batchSize, params.batchIntervalMs, params.minPauseBetweenFlushMs) {

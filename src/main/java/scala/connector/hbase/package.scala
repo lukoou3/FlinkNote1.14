@@ -68,7 +68,7 @@ package object hbase {
       assert(!params.onlyStringCol || Seq(CHAR, VARCHAR).contains(logicalType.getTypeRoot), "只支持string列模式")
       (family, Bytes.toBytes(params.fieldColMap.getOrElse(name, name)), makeGetter(logicalType, i))
     }
-    val _getKey = Utils.getTableKeyFunction(resolvedSchema,params.keyedMode,params.keys,params.orderBy)
+    val _getKey = Utils.getTableKeyFunction(resolvedSchema,params.keyedMode,params.keys)
     val tableOrdering = Utils.getTableOrdering(resolvedSchema, params.orderBy)
 
     new BatchIntervalHbaseSink[RowData](params.hbaseConf, params.tableName, params.batchSize, params.batchIntervalMs, params.minPauseBetweenFlushMs){
