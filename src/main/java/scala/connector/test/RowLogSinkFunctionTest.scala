@@ -19,7 +19,7 @@ import org.apache.flink.table.types.logical.LogicalTypeRoot.{BIGINT, CHAR, DOUBL
 import org.apache.flink.types.Row
 
 import scala.collection.JavaConverters._
-import scala.serialization.SerializationSchemaLogWrapper
+import scala.serialization.{BinarySerializationSchema, SerializationSchemaLogWrapper}
 import scala.connector.log.LogSinkFunction
 
 object RowLogSinkFunctionTest {
@@ -82,7 +82,10 @@ object RowLogSinkFunctionTest {
 
     //rstDs.addSink(new LogSinkFunction[Row]("error", serializer))
     //rstDs.addSink(new LogSinkFunction[Row]("error", csvSerializer))
-    rstDs.addSink(new LogSinkFunction[Row]("error", new SerializationSchemaLogWrapper(serializer)))
+    //rstDs.addSink(new LogSinkFunction[Row]("error", new SerializationSchemaLogWrapper(serializer)))
+    val bb = rstDs.map(_.toString.getBytes)
+    println(bb.dataType)
+    bb.addSink(new LogSinkFunction[Array[Byte]]("error", new SerializationSchemaLogWrapper(new BinarySerializationSchema)))
 
     // 阻塞
     env.execute("SocketDynamicTableTest")

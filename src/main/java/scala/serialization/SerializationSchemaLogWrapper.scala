@@ -14,10 +14,22 @@ class SerializationSchemaLogWrapper[T:ClassTag](
   serializer: SerializationSchema[T],
   logLevel: String = "warn"
 ) extends SerializationSchema[T] with Logging{
+  println(0)
+  println(implicitly[ClassTag[T]])
   val getRowKind: Any => String = implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]] match {
     case x if x == classOf[RowData] => x => x.asInstanceOf[RowData].getRowKind.toString
     case x if x == classOf[Row] => x => x.asInstanceOf[Row].getKind.toString
-    case _ => null
+    case x if x == classOf[Array[String]] =>  println(1); x =>
+
+      ""
+    case x if x == classOf[Array[_]] =>  println(2); x =>
+
+      ""
+    case x if x == classOf[Array[Byte]] => println(3); x =>
+      ""
+    case _ =>
+      println(4)
+      null
   }
 
   override def open(context: SerializationSchema.InitializationContext): Unit = {

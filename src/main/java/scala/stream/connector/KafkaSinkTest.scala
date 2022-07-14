@@ -30,7 +30,7 @@ object KafkaSinkTest {
     env.getCheckpointConfig.setCheckpointStorage("file:///F:/flink-checkpoints")
 
     val onlineLog = env.addSource(
-      new LocalFileSourceFunction("D:\\IdeaWorkspace\\FlinkNote\\Flink12\\test_data\\online_log.json",
+      new LocalFileSourceFunction("D:\\ideaProjects\\FlinkNote\\Flink12\\test_data\\online_log.json",
         sleep = 100, deserializer = new SimpleStringSchema())
       //new LocalFileSourceFunction("D:\\\\ideaProjects\\FlinkNote\\Flink12\\test_data\\online_log.json", sleep = 100)
     )
