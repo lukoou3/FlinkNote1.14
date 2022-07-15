@@ -18,12 +18,14 @@ import scala.math.Ordering
 abstract class InternalScalarFunction extends ScalarFunction with SpecializedFunction{
   self =>
   import InternalScalarFunction._
-  var funcId = 0
+  var funcId = nextFuncId
 
   override def specialize(context: SpecializedFunction.SpecializedContext): UserDefinedFunction = {
     val clazz = context.getCallContext.getFunctionDefinition.getClass
     println("specialize")
-    clazz.newInstance().asInstanceOf[UserDefinedFunction]
+    val func = clazz.newInstance()
+    func.asInstanceOf[InternalScalarFunction].funcId = nextFuncId
+    func.asInstanceOf[UserDefinedFunction]
   }
 
   def argumentCount: ArgumentCount
@@ -55,7 +57,7 @@ abstract class InternalScalarFunction extends ScalarFunction with SpecializedFun
       )
       .outputTypeStrategy(new TypeStrategy {
         override def inferType(callContext: CallContext): Optional[DataType] = {
-          funcId += 1
+          funcId = nextFuncId
           val dType: DataType = self.inferOutputType(callContext.getArgumentDataTypes().asScala, callContext, typeFactory)
           val claszz = dataTypeConversionClass(dType)
           Optional.of(dType.bridgedTo(claszz))
@@ -67,6 +69,13 @@ abstract class InternalScalarFunction extends ScalarFunction with SpecializedFun
 }
 
 object InternalScalarFunction{
+  var funcId = 0
+
+  def nextFuncId: Int = synchronized {
+    funcId = funcId + 1
+    funcId
+  }
+
   def anyArgumentCount = ConstantArgumentCount.any()
   def fixArgumentCount(fix: Int) = ConstantArgumentCount.of(fix)
   def betweenArgumentCount(minCount: Int, maxCount: Int) = ConstantArgumentCount.between(minCount,maxCount )

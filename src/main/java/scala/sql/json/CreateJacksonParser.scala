@@ -15,9 +15,10 @@ object CreateJacksonParser {
   def utf8String(jsonFactory: JsonFactory, record: StringData): JsonParser = {
     val bb = record.toBytes
 
-    val bain = new ByteArrayInputStream(bb)
+    //val bain = new ByteArrayInputStream(bb)
+    //jsonFactory.createParser(new InputStreamReader(bain, StandardCharsets.UTF_8))
 
-    jsonFactory.createParser(new InputStreamReader(bain, StandardCharsets.UTF_8))
+    jsonFactory.createParser(bb, 0, bb.length)
   }
 
 }

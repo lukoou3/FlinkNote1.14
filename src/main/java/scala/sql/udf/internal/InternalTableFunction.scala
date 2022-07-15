@@ -15,11 +15,13 @@ import scala.collection.JavaConverters._
 abstract class InternalTableFunction extends TableFunction[RowData] with SpecializedFunction{
   self =>
   import InternalScalarFunction._
-  var funcId = 0
+  var funcId = nextFuncId
 
   override def specialize(context: SpecializedFunction.SpecializedContext): UserDefinedFunction = {
     val clazz = context.getCallContext.getFunctionDefinition.getClass
-    clazz.newInstance().asInstanceOf[UserDefinedFunction]
+    val func = clazz.newInstance()
+    func.asInstanceOf[InternalTableFunction].funcId = nextFuncId
+    func.asInstanceOf[UserDefinedFunction]
   }
 
   def argumentCount: ArgumentCount
@@ -51,7 +53,7 @@ abstract class InternalTableFunction extends TableFunction[RowData] with Special
       )
       .outputTypeStrategy(new TypeStrategy {
         override def inferType(callContext: CallContext): Optional[DataType] = {
-          funcId += 1
+          funcId = nextFuncId
           val dType: DataType = self.inferOutputType(callContext.getArgumentDataTypes().asScala, callContext, typeFactory)
           val claszz = dataTypeConversionClass(dType)
           Optional.of(dType.bridgedTo(claszz))

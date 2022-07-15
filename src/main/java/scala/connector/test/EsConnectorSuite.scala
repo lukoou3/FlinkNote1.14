@@ -122,11 +122,11 @@ class EsConnectorSuite extends AnyFunSuite with BeforeAndAfterAll {
     """
     val rstTable = tEnv.sqlQuery(sql)
 
-    rstTable.addRowDataBatchIntervalEsSink(Map(
+    rstTable.addRowDataBatchIntervalEsSink(EsSinkParams(Map(
       ES_RESOURCE_WRITE -> "index_test30/type_test",
       ES_INDEX_AUTO_CREATE -> "true",
       ES_MAPPING_ID -> "_id"
-    ), 10, 5000)
+    ), 10, 5000))
 
   }
 
@@ -161,7 +161,7 @@ class EsConnectorSuite extends AnyFunSuite with BeforeAndAfterAll {
     """
     val rstTable = tEnv.sqlQuery(sql)
 
-    rstTable.addRowDataBatchIntervalEsSink(Map(
+    rstTable.addRowDataBatchIntervalEsSink(EsSinkParams(Map(
       ES_RESOURCE_WRITE -> "index_test6/type_test",
       ES_INDEX_AUTO_CREATE -> "true",
       ES_MAPPING_ID -> "_id",
@@ -169,7 +169,7 @@ class EsConnectorSuite extends AnyFunSuite with BeforeAndAfterAll {
       ES_UPDATE_SCRIPT_INLINE -> "if (ctx._source.v == null || ctx._source.v < params.v){ctx._source.title = params.title; ctx._source.author = params.author; ctx._source.v = params.v;}",
       ES_UPDATE_SCRIPT_PARAMS -> "title:title,author:author,v:v",
       ES_UPDATE_SCRIPT_LANG -> "painless"
-    ), 10, 5000)
+    ), 10, 5000))
   }
 
   test("table-create-UpsertScript") {
@@ -256,11 +256,11 @@ class EsConnectorSuite extends AnyFunSuite with BeforeAndAfterAll {
 
     val table = tEnv.sqlQuery("select id,name,age,cnt,data,datas from tmp_tb1")
 
-    table.addRowDataBatchIntervalEsSink(Map(
+    table.addRowDataBatchIntervalEsSink(EsSinkParams(Map(
       ES_RESOURCE_WRITE -> "index_test5/type_test",
       ES_INDEX_AUTO_CREATE -> "true",
       ES_MAPPING_ID -> "id"
-    ), 10, 5000)
+    ), 10, 5000))
   }
 
   test("addBatchIntervalEsSink"){

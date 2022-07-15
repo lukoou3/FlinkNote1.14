@@ -49,12 +49,12 @@ class JdbcConnectorSuite extends AnyFunSuite with BeforeAndAfterAll{
     """
     val table = tEnv.sqlQuery(sql)
 
-    table.addRowDataBatchIntervalJdbcSink(
+    table.addRowDataBatchIntervalJdbcSink(JdbcSinkParams(
       "people",
       JdbcConnectionOptions("jdbc:mysql://localhost:3306/jdbc_test?characterEncoding=utf8", "root",
         "123456", "com.mysql.jdbc.Driver"),
       5, 3000
-    )
+    ))
   }
 
   test("addBatchIntervalJdbcSink") {

@@ -276,13 +276,13 @@ class InternalFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
       proctime as proctime()
     ) WITH (
       'connector' = 'faker',
-      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.expression' = '#{regexify ''(莫南|青丝|璇音|流沙){1}''}',
       'fields.name.null-rate' = '0.2',
       'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
       'fields.age.null-rate' = '0.2',
       'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
       'fields.cnt.null-rate' = '0.2',
-      'fields.names.expression' = '#{harry_potter.spell}',
+      'fields.names.expression' = '#{regexify ''(莫南|青丝|璇音|流沙){1}''}',
       'fields.names.length' = '3',
       'fields.names.null-rate' = '0.3',
       'fields.datas.name.expression' = '#{harry_potter.spell}',
