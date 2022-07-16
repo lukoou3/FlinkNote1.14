@@ -19,6 +19,7 @@ class InternalFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
   override protected def beforeAll(): Unit = {
     val conf = new Configuration()
     env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf)
+    //val a =  StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(1)
     env.getConfig.enableObjectReuse()
 
