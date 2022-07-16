@@ -78,6 +78,7 @@ object InternalScalarFunction{
 
   def anyArgumentCount = ConstantArgumentCount.any()
   def fixArgumentCount(fix: Int) = ConstantArgumentCount.of(fix)
+  def minArgumentCount(minCount: Int) = ConstantArgumentCount.from(minCount)
   def betweenArgumentCount(minCount: Int, maxCount: Int) = ConstantArgumentCount.between(minCount,maxCount )
 
   val findTightestCommonType: (DataType, DataType) => Option[DataType] = {

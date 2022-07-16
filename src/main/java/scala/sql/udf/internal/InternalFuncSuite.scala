@@ -157,6 +157,99 @@ class InternalFuncSuite extends AnyFunSuite with BeforeAndAfterAll{
     rstTable.execute().print()
   }
 
+  test("java_method"){
+    tEnv.createTemporarySystemFunction("java_method", classOf[CallMethodViaReflection])
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      code int,
+      cnt bigint,
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.3',
+      'fields.code.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.code.null-rate' = '0',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'fields.cnt.null-rate' = '0',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        name,
+        code,
+        cnt,
+        java_method('java.util.UUID', 'randomUUID') value1,
+        java_method('java.lang.String', 'valueOf', name) value2,
+        java_method('java.lang.Math', 'addExact', code, 10) value3,
+        java_method('java.lang.Math', 'addExact', cnt, cast(10 as bigint)) value4
+        -- if(code is not null, java_method('java.lang.Math', 'addExact', code, 10), cast(null as string))  value3,
+        -- if(cnt is not null, java_method('java.lang.Math', 'addExact', cnt, cast(10 as bigint)), cast(null as string)) value4
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+
+    rstTable.getResolvedSchema.toSinkRowDataType
+    rstTable.printSchema()
+    //println(rstTable.explain())
+
+    rstTable.execute().print()
+  }
+
+  test("named_struct"){
+    tEnv.createTemporarySystemFunction("named_struct", new CreateNamedStruct)
+
+    var sql = """
+    CREATE TABLE tmp_tb1 (
+      name string,
+      age int,
+      cnt bigint,
+      names array<string>,
+      datas array<row<name string, age int>>,
+      log_time timestamp_ltz(3),
+      proctime as proctime()
+    ) WITH (
+      'connector' = 'faker',
+      'fields.name.expression' = '#{superhero.name}',
+      'fields.name.null-rate' = '0.2',
+      'fields.age.expression' = '#{number.numberBetween ''0'',''20''}',
+      'fields.age.null-rate' = '0.2',
+      'fields.cnt.expression' = '#{number.numberBetween ''0'',''20000000000''}',
+      'fields.cnt.null-rate' = '0.2',
+      'fields.names.expression' = '#{harry_potter.spell}',
+      'fields.names.length' = '3',
+      'fields.names.null-rate' = '0.3',
+      'fields.datas.name.expression' = '#{harry_potter.spell}',
+      'fields.datas.age.expression' = '#{number.numberBetween ''20'',''30''}',
+      'fields.datas.length' = '3',
+      'fields.datas.null-rate' = '0.3',
+      'fields.log_time.expression' =  '#{date.past ''5'',''0'',''SECONDS''}',
+      'rows-per-second' = '1'
+    )
+    """
+    tEnv.executeSql(sql)
+
+    sql = """
+    select
+        names,
+        datas,
+        named_struct('name', name, 'age', age, 'cnt', cnt) struct1,
+        named_struct('age', age, 'cnt', cnt) struct2,
+        named_struct('name', '是在下', 'age', 1) struct3
+    from tmp_tb1
+    """
+    val rstTable = tEnv.sqlQuery(sql)
+    rstTable.printSchema()
+    println(rstTable.explain())
+
+    rstTable.execute().print()
+  }
+
   test("to_json"){
     tEnv.createTemporarySystemFunction("named_struct", new CreateNamedStruct)
     tEnv.createTemporarySystemFunction("to_json", classOf[StructsToJson])

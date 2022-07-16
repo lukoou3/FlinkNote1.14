@@ -17,12 +17,12 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
-import org.apache.spark.sql.catalyst.catalog.SessionCatalog
-import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.internal.SQLConf
-import org.apache.spark.sql.types.DataType
+//import org.apache.spark.sql.catalyst.catalog.SessionCatalog
+//import org.apache.spark.sql.catalyst.expressions._
+//import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+//import org.apache.spark.sql.catalyst.rules.Rule
+//import org.apache.spark.sql.internal.SQLConf
+//import org.apache.spark.sql.types.DataType
 
 /**
  * Resolve a higher order functions from the catalog. This is different from regular function
@@ -30,9 +30,10 @@ import org.apache.spark.sql.types.DataType
  * so we need to resolve higher order function when all children are either resolved or a lambda
  * function.
  */
-case class ResolveHigherOrderFunctions(catalog: SessionCatalog) extends Rule[LogicalPlan] {
+//case class ResolveHigherOrderFunctions(catalog: SessionCatalog) extends Rule[LogicalPlan] {
+case class ResolveHigherOrderFunctions(a:Int){
 
-  override def apply(plan: LogicalPlan): LogicalPlan = plan.resolveExpressions {
+/*  override def apply(plan: LogicalPlan): LogicalPlan = plan.resolveExpressions {
     case u @ UnresolvedFunction(fn, children, false)
         if hasLambdaAndResolvedArguments(children) =>
       withPosition(u) {
@@ -52,7 +53,7 @@ case class ResolveHigherOrderFunctions(catalog: SessionCatalog) extends Rule[Log
   private def hasLambdaAndResolvedArguments(expressions: Seq[Expression]): Boolean = {
     val (lambdas, others) = expressions.partition(_.isInstanceOf[LambdaFunction])
     lambdas.nonEmpty && others.forall(_.resolved)
-  }
+  }*/
 }
 
 /**
@@ -67,7 +68,7 @@ case class ResolveHigherOrderFunctions(catalog: SessionCatalog) extends Rule[Log
  *      be a lambda function defined in an outer scope, or a attribute in produced by the plan's
  *      child. If names are duplicate, the name defined in the most inner scope is used.
  */
-case class ResolveLambdaVariables2(conf: SQLConf) extends Rule[LogicalPlan] {
+/*case class ResolveLambdaVariables2(conf: SQLConf) extends Rule[LogicalPlan] {
 
   type LambdaVariableMap = Map[String, NamedExpression]
 
@@ -161,4 +162,4 @@ case class ResolveLambdaVariables2(conf: SQLConf) extends Rule[LogicalPlan] {
     case _ =>
       e.mapChildren(resolve(_, parentLambdaMap))
   }
-}
+}*/

@@ -1,15 +1,15 @@
 package scala.spark.catalyst.testspark
 
-import org.apache.spark.sql.catalyst.analysis.ResolveLambdaVariables2
-import org.apache.spark.sql.catalyst.expressions.{Expression, LambdaFunction, NamedLambdaVariable}
-import org.apache.spark.sql.execution.SparkSqlParser
-import org.apache.spark.sql.internal.SQLConf
-import org.apache.spark.sql.types.IntegerType
+//import org.apache.spark.sql.catalyst.analysis.ResolveLambdaVariables2
+//import org.apache.spark.sql.catalyst.expressions.{Expression, LambdaFunction, NamedLambdaVariable}
+//import org.apache.spark.sql.execution.SparkSqlParser
+//import org.apache.spark.sql.internal.SQLConf
+//import org.apache.spark.sql.types.IntegerType
 import org.scalatest.funsuite.AnyFunSuite
 
 class SparkTest extends AnyFunSuite {
 
-  test("aa"){
+/*  test("aa"){
     import org.apache.spark.sql.catalyst.expressions.EmptyRow
     val conf = new SQLConf
     val parser = new SparkSqlParser(conf)
@@ -33,6 +33,6 @@ class SparkTest extends AnyFunSuite {
     println(expression1.eval(EmptyRow))// new GenericInternalRow(Array[Any](1))
     value.value.set(4)
     println(expression1.eval(EmptyRow))
-  }
+  }*/
 
 }

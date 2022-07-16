@@ -19,7 +19,8 @@ object FileSystemTest {
 
   def main(args: Array[String]): Unit = {
     val conf = new Configuration()
-    val env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf)
+    //val env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf)
+    val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(2)
 
     val settings = EnvironmentSettings.newInstance().useBlinkPlanner().inStreamingMode().build()
@@ -33,6 +34,7 @@ object FileSystemTest {
     env.getCheckpointConfig.setCheckpointStorage("file:///F:/flink-checkpoints")
 
 
+    // 需要先启动`nc -lk 9999`，用来发送数据，windows使用`nc -l -p 9999`命令
     val text: DataStream[String] = env.socketTextStream("localhost", 9999)
 
     val fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
@@ -64,9 +66,10 @@ CREATE TABLE fs_table (
 ) PARTITIONED BY (dt, `hour`) WITH (
   'connector'='filesystem',
   'path'='file:///F:/flink-fileSink/filesystem',
-  'format'='csv',
+  'format'='orc',
   'sink.partition-commit.trigger'='process-time',
   'sink.partition-commit.delay'='0 s',
+  'sink.partition-commit.policy.kind'='success-file',
   -- 'sink.partition-commit.policy.kind'='metastore',
   'sink.rolling-policy.file-size'='1MB',
   'sink.rolling-policy.rollover-interval'='2 min',
