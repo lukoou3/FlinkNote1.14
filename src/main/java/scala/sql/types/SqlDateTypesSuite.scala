@@ -624,6 +624,7 @@ class SqlDateTypesSuite extends AnyFunSuite with BeforeAndAfterAll {
 
     val table = tEnv.sqlQuery("select name, count(age) age from tmp_tb1 group by name")
 
+    // api显示返回的就只是Row类型
     val rowDs: DataStream[Row] = table.toChangelogStream
     println(rowDs.dataType)
 
