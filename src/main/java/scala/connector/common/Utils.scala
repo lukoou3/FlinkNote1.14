@@ -1,14 +1,51 @@
 package scala.connector.common
 
-import org.apache.flink.table.catalog.ResolvedSchema
+import javax.annotation.Nullable
+import org.apache.flink.streaming.api.scala.DataStream
+import org.apache.flink.table.api.{Table, ValidationException}
+import org.apache.flink.table.api.bridge.scala.StreamTableEnvironment
+import org.apache.flink.table.api.bridge.scala.internal.StreamTableEnvironmentImpl
+import org.apache.flink.table.api.internal.TableImpl
+import org.apache.flink.table.catalog.SchemaTranslator.ProducingResult
+import org.apache.flink.table.catalog.{ResolvedSchema, SchemaTranslator}
+import org.apache.flink.table.connector.ChangelogMode
 import org.apache.flink.table.data.{GenericRowData, RowData, StringData}
+import org.apache.flink.table.types.DataType
 import org.apache.flink.table.types.logical.{LogicalType, RowType}
 import org.apache.flink.table.types.logical.LogicalTypeRoot._
+import org.apache.flink.util.Preconditions
 
 import scala.collection.JavaConverters._
 import scala.math.Ordering
 
 object Utils {
+
+  def getRowDataDataStreamInternal(table: Table, @Nullable changelogMode: ChangelogMode): DataStream[RowData] ={
+    val internalEnv = table.asInstanceOf[TableImpl].getTableEnvironment
+    internalEnv match {
+      case tableEnv: StreamTableEnvironment =>
+        val rowDataDataType: DataType = table.getResolvedSchema.toPhysicalRowDataType.bridgedTo(classOf[RowData])
+        Preconditions.checkNotNull(table, "Table must not be null.")
+        Preconditions.checkNotNull(rowDataDataType, "Target data type must not be null.")
+
+        val tableEnvImpl = tableEnv.asInstanceOf[StreamTableEnvironmentImpl]
+
+        val schemaTranslationResult = SchemaTranslator.createProducingResult(
+          tableEnvImpl.getCatalogManager.getDataTypeFactory,
+          table.getResolvedSchema,
+          rowDataDataType)
+
+        val toStreamInternal = classOf[StreamTableEnvironmentImpl].getDeclaredMethod("toStreamInternal",
+          classOf[Table], classOf[ProducingResult], classOf[ChangelogMode])
+        toStreamInternal.setAccessible(true)
+
+        toStreamInternal.invoke(tableEnvImpl, table, schemaTranslationResult, changelogMode).asInstanceOf[DataStream[RowData]]
+      case _ =>
+        throw new ValidationException(
+          "Table cannot be converted into a Scala DataStream. " +
+            "It is not part of a Scala StreamTableEnvironment.")
+    }
+  }
 
   implicit class StringCfgOps(str:String){
 
