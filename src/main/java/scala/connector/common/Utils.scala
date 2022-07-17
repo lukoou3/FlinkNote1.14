@@ -35,6 +35,7 @@ object Utils {
           table.getResolvedSchema,
           rowDataDataType)
 
+        // 这个方法可以放心用看了一下，1.16把这个方法移动到抽象父类AbstractStreamTableEnvironmentImpl中了
         val toStreamInternal = classOf[StreamTableEnvironmentImpl].getDeclaredMethod("toStreamInternal",
           classOf[Table], classOf[ProducingResult], classOf[ChangelogMode])
         toStreamInternal.setAccessible(true)
