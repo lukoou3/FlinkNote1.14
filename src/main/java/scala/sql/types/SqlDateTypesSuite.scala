@@ -12,7 +12,7 @@ import org.apache.flink.table.api.{DataTypes, EnvironmentSettings, Schema}
 import org.apache.flink.table.api.bridge.scala._
 import org.apache.flink.table.api.bridge.scala.internal.StreamTableEnvironmentImpl
 import org.apache.flink.table.data.{GenericRowData, RowData, StringData}
-import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo
+import org.apache.flink.table.runtime.typeutils.{ExternalTypeInfo, InternalTypeInfo}
 import org.apache.flink.table.types.logical.utils.LogicalTypeUtils
 import org.apache.flink.table.types.{DataType, FieldsDataType}
 import org.apache.flink.table.types.logical.{LogicalType, RowType}
@@ -535,6 +535,49 @@ class SqlDateTypesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val rowDataDs2: DataStream[RowData] = rstTable.toDataStream[RowData](rowDataDataType)
     //val rowDataDs: DataStream[RowData] = table.toAppendStream[RowData]
     println(rowDataDs2.dataType)
+
+    rowDataDs2.addSink{ row =>
+      println(row)
+    }
+  }
+
+  test("ds转table_RowData4") {
+    val names = Array("莫南","璇音","青丝","流沙")
+
+    val rowDataDs: DataStream[RowData] = env.fromSequence(1, 10000).map{ i =>
+      if(i % 5 > 0){
+        val name = names((i % 4).toInt)
+        val age = java.lang.Integer.valueOf((18 + i % 100).toInt)
+        val cnt = java.lang.Long.valueOf(18 + i % 100)
+        val row: RowData = GenericRowData.of(StringData.fromString(name), age, cnt)
+        row
+      }else{
+        GenericRowData.of(null, null, null)
+      }
+    }(InternalTypeInfo.of[RowData](
+      tEnv.asInstanceOf[StreamTableEnvironmentImpl].getCatalogManager.getDataTypeFactory
+        .createDataType("ROW<name string, age int, cnt bigint>").getLogicalType)
+    )
+
+
+    /**
+     * [[org.apache.flink.table.runtime.operators.source.InputConversionOperator]]
+     * internalRecord = converter.toInternal(externalRecord)
+     * [[org.apache.flink.table.data.conversion.IdentityConverter]]
+     */
+    val rstTable = tEnv.fromDataStream(rowDataDs)
+
+
+    val rowDataDataType: DataType = rstTable.getResolvedSchema.toPhysicalRowDataType.bridgedTo(classOf[RowData])
+    val rowDataDs2: DataStream[RowData] = rstTable.toDataStream[RowData](rowDataDataType)
+    //val rowDataDs: DataStream[RowData] = table.toAppendStream[RowData]
+    val tape1 = InternalTypeInfo.of[RowData](
+      tEnv.asInstanceOf[StreamTableEnvironmentImpl].getCatalogManager.getDataTypeFactory
+        .createDataType("ROW<name string, age int, cnt bigint>").getLogicalType)
+    val tape2 = rowDataDs2.dataType
+    println(tape1)
+    println(tape2)
+    println()
 
     rowDataDs2.addSink{ row =>
       println(row)
