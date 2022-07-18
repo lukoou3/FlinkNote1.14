@@ -1,12 +1,17 @@
 package scala.file.sql
 
+import java.nio.charset.StandardCharsets
 import java.util
 import java.util.List
 
-import org.apache.commons.lang.StringUtils
+import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.fs.Path
+import org.apache.hadoop.hive.ql.exec.vector.{BytesColumnVector, ColumnVector, LongColumnVector, TimestampColumnVector}
+import org.apache.orc.TypeDescription.Category
 import org.apache.orc.{OrcConf, OrcFile, TypeDescription}
 import org.scalatest.funsuite.AnyFunSuite
+
+import scala.collection.JavaConverters._
 
 /**
  * orc官方api
@@ -73,6 +78,85 @@ class OrcApiSuite extends AnyFunSuite{
     rows.close()
   }
 
+  test("orc_api3"){
+    val capacity = 1024
+    // initialize
+    val conf = new org.apache.hadoop.conf.Configuration
+    val reader = OrcFile.createReader(
+      //new Path("file:///D:/chromedownload/dim_common_province_a.orc"),
+      new Path("file:///D:/chromedownload/pin_ord_stat.snappy.orc"),
+      OrcFile.readerOptions(conf))
+
+    val options = reader.options().include(parseInclude(reader.getSchema, "0,1"))
+    //val recordReader = reader.rows(options)
+    val recordReader = reader.rows
+
+    val schema = reader.getSchema
+    println(schema.toString)
+
+    val getters = schema.getChildren.asScala.zip(schema.getFieldNames.asScala).zipWithIndex.map{case ((typ, name), i) =>
+      val func: (ColumnVector, Int) => Any = typ.getCategory match {
+        case Category.LONG => (col, i) =>
+          val index = if(col.isRepeating)  0 else i
+          if(col.isNull(index)){
+            null
+          }else{
+            col.asInstanceOf[LongColumnVector].vector(index)
+          }
+        case Category.INT => (col, i) =>
+          val index = if(col.isRepeating)  0 else i
+          if(col.isNull(index)){
+            null
+          }else {
+            col.asInstanceOf[LongColumnVector].vector(index).toInt
+          }
+        case Category.STRING => (col, i) =>
+          val index = if(col.isRepeating)  0 else i
+          if(col.isNull(index)){
+            null
+          }else {
+            new String(
+              col.asInstanceOf[BytesColumnVector].vector(index),
+              col.asInstanceOf[BytesColumnVector].start(index),
+              col.asInstanceOf[BytesColumnVector].length(index),
+              StandardCharsets.UTF_8
+            )
+          }
+        case Category.TIMESTAMP => (col, i) =>
+          val index = if(col.isRepeating)  0 else i
+          if(col.isNull(index)){
+            null
+          }else {
+            //一个对象
+            col.asInstanceOf[TimestampColumnVector].asScratchTimestamp(index)
+          }
+      }
+      (i, name, func)
+    }
+
+    // initBatch
+    val batch = reader.getSchema.createRowBatch(capacity)
+    var count = 0
+    while (recordReader.nextBatch(batch)) {
+      batch.cols
+      var i = 0
+      while (i < batch.size){
+        val row = getters.map{ case(j, name, getter) =>
+          val value = getter(batch.cols(j), i)
+          (name, value)
+        }.toMap
+        println(row)
+
+        i += 1
+        count += 1
+      }
+    }
+
+    println(s"count:$count")
+
+    recordReader.close()
+  }
+
   /**
    * [org.apache.orc.mapred.OrcInputFormat#buildOptions]
    * [org.apache.orc.mapred.OrcInputFormat#parseInclude]
@@ -85,17 +169,25 @@ class OrcApiSuite extends AnyFunSuite{
    * @return a boolean array
    */
   def parseInclude(schema: TypeDescription, columnsStr: String): Array[Boolean] = {
-    if (columnsStr == null || (schema.getCategory ne TypeDescription.Category.STRUCT)) return null
-    val result: Array[Boolean] = new Array[Boolean](schema.getMaximumId + 1)
+    if (columnsStr == null || (schema.getCategory ne TypeDescription.Category.STRUCT)){
+      return null
+    }
+
+    val result = new Array[Boolean](schema.getMaximumId + 1)
     result(0) = true
-    if (StringUtils.isBlank(columnsStr)) return result
-    val types: util.List[TypeDescription] = schema.getChildren
+
+    if (StringUtils.isBlank(columnsStr)){
+      return result
+    }
+
+    val types = schema.getChildren
     for (idString <- columnsStr.split(",")) {
-      val `type`: TypeDescription = types.get(idString.toInt)
-      for (c <- `type`.getId to `type`.getMaximumId) {
+      val typeDesc = types.get(idString.toInt)
+      for (c <- typeDesc.getId to typeDesc.getMaximumId) {
         result(c) = true
       }
     }
+
     result
   }
 
