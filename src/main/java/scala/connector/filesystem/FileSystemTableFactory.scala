@@ -37,7 +37,9 @@ class FileSystemTableFactory extends DynamicTableSourceFactory{
       config.get(PATH),
       physicalSchema,
       decodingFormat,
-      format == "orc"
+      format == "orc",
+      config.get(LOOKUP_CACHE_MAX_ROWS),
+      config.get(LOOKUP_CACHE_TTL).toMillis
     )
   }
 
