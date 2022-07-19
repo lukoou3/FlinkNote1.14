@@ -32,8 +32,10 @@ abstract class LoadIntervalDataUtil[T] private(
 
   private def updateData(): Unit = {
     try {
+      logWarning("updateData start....")
       val newData = Utils.retry("LoadIntervalDataUtil-updateData", retry, retryWait)(loadData())
       _data = newData
+      logWarning("updateData end....")
     } catch {
       case e:Exception =>
         exception = e

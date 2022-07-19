@@ -3,4 +3,5 @@ scala.connector.log.LogTableSinkFactory
 scala.connector.localfile.LocalFileTableFactory
 scala.connector.faker.FlinkFakerTableSourceFactory
 scala.connector.es.EsTableFactory
+scala.connector.filesystem.FileSystemTableFactory
 scala.connector.jdbc.JdbcTableFactory

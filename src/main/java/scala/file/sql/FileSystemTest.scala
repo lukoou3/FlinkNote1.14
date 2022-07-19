@@ -14,6 +14,7 @@ import org.apache.flink.table.api.bridge.scala.StreamTableEnvironment
 
 /**
  * 这个使用和flink1.12一样
+ * org.apache.flink.orc.shim.OrcShimV200
  */
 object FileSystemTest {
 

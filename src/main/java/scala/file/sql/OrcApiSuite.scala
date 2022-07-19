@@ -4,7 +4,9 @@ import java.nio.charset.StandardCharsets
 import java.util
 import java.util.List
 
+import com.alibaba.fastjson.JSON
 import org.apache.commons.lang3.StringUtils
+import org.apache.flink.table.api.DataTypes
 import org.apache.flink.table.types.AtomicDataType
 import org.apache.flink.table.types.logical.IntType
 import org.apache.hadoop.fs.Path
@@ -165,13 +167,14 @@ class OrcApiSuite extends AnyFunSuite{
     // initialize
     val conf = new org.apache.hadoop.conf.Configuration
     val reader = OrcFile.createReader(
-      //new Path("file:///D:/chromedownload/dim_common_province_a.orc"),
-      new Path("file:///D:/chromedownload/pin_ord_stat.snappy.orc"),
+      new Path("file:///D:/ChromeDownload/orc/dim_common_province_a.orc"),
+      //new Path("file:///D:/chromedownload/pin_ord_stat.snappy.orc"),
       OrcFile.readerOptions(conf))
 
+    // 过滤掉的话查到的都是null
     val options = reader.options().include(parseInclude(reader.getSchema, "0,1"))
-    //val recordReader = reader.rows(options)
-    val recordReader = reader.rows
+    val recordReader = reader.rows(options)
+    //val recordReader = reader.rows
 
     val schema = reader.getSchema
     println(schema.toString)
@@ -179,15 +182,46 @@ class OrcApiSuite extends AnyFunSuite{
 
     // initBatch
     val batch = reader.getSchema.createRowBatch(capacity)
-    val orcVectorWrappers = schema.getChildren.asScala.zip(batch.cols).map{case(typ, col) =>
-      val dataType = new AtomicDataType(new IntType)
+    val orcVectorWrappers = schema.getChildren.asScala.zip(batch.cols).map { case (typ, col) =>
+      val dataType = typ.getCategory match {
+        case Category.LONG => DataTypes.BIGINT()
+        case Category.INT => DataTypes.INT()
+        case Category.STRING => DataTypes.STRING()
+        case Category.TIMESTAMP => DataTypes.BIGINT()
+      }
       new OrcColumnVector(dataType, col)
-    }
+    }.toArray
+
+    val getters = schema.getChildren.asScala.zip(schema.getFieldNames.asScala).zipWithIndex.map { case ((typ, name), i) =>
+      val func: (OrcColumnVector, Int) => Any = typ.getCategory match {
+        case Category.LONG => (col, i) => col.getLong(i)
+        case Category.INT => (col, i) => col.getInt(i)
+        case Category.STRING => (col, i) => col.getString(i)
+        case Category.TIMESTAMP => (col, i) => col.getLong(i)
+      }
+      (i, name, func)
+    }.toArray
 
     var count = 0
     while (recordReader.nextBatch(batch)) {
       batch.cols
       var i = 0
+      while (i < batch.size){
+        val row = getters.map{ case(j, name, getter) =>
+          val vector = orcVectorWrappers(j)
+          val value = if(vector.isNullAt(i)){
+            null
+          } else{
+            getter(vector, i)
+          }
+          //(name, value)
+          (name, value.toString)
+        }.toMap
+        println(JSON.toJSONString(row.asJava, false))
+
+        i += 1
+        count += 1
+      }
     }
 
     println(s"count:$count")

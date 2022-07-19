@@ -1,10 +1,11 @@
-package scala.file.orc;
+package scala.connector.filesystem;
 
 import org.apache.flink.table.data.StringData;
-import org.apache.hadoop.hive.ql.exec.vector.*;
 import org.apache.flink.table.types.DataType;
+import org.apache.hadoop.hive.ql.exec.vector.*;
 
-import static org.apache.flink.table.types.logical.LogicalTypeRoot.*;
+import static org.apache.flink.table.types.logical.LogicalTypeRoot.DATE;
+import static org.apache.flink.table.types.logical.LogicalTypeRoot.TIMESTAMP_WITH_TIME_ZONE;
 
 public class OrcColumnVector {
     private ColumnVector baseData;
