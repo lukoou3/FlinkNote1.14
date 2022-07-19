@@ -23,8 +23,10 @@ class FileSystemRowDataLookupFunction(
   val path: String,
   val fieldInfos: Seq[(String, DataType)],
   val keyIndices: Array[Int],
-  deserializer: DeserializationSchema[RowData],
-  isOrc: Boolean
+  val deserializer: DeserializationSchema[RowData],
+  val isOrc: Boolean,
+  val cacheMaxSize: Int,
+  val cacheExpireMs: Long
 ) extends TableFunction[RowData] with Logging {
   type CacheMap = util.Map[RowData, List[RowData]]
   @transient var cache: ResourceData[LoadIntervalDataUtil[CacheMap]] = null
@@ -33,7 +35,7 @@ class FileSystemRowDataLookupFunction(
 
   override def open(context: FunctionContext): Unit = {
     keyFieldGetters = keyIndices.map(i => RowData.createFieldGetter(fieldInfos(i)._2.getLogicalType, i))
-    cache = SingleValueMap.acquireResourceData(path, LoadIntervalDataUtil(intervalMs = 60000 * 5) {
+    cache = SingleValueMap.acquireResourceData(path, LoadIntervalDataUtil(intervalMs = cacheExpireMs) {
       if(isOrc) fetchDatasFromOrcFile() else fetchDatasFromTextFile()
     })(_.stop())
     lookupKey = new GenericRowData(keyFieldGetters.length)
@@ -80,11 +82,17 @@ class FileSystemRowDataLookupFunction(
 
     val inputStream = fs.open(fsPath)
 
+    var count = 0
     for (line <- Source.fromInputStream(inputStream, "utf-8").getLines().filter(_.trim != "")) {
       val lineByte = line.getBytes(StandardCharsets.UTF_8)
       val row = deserializer.deserialize(lineByte)
       putRowToCache(row, cacheMap)
+      count += 1
+      if(count > cacheMaxSize){
+        throw new Exception(s"count:$count is greater than cacheMaxSize:$cacheMaxSize")
+      }
     }
+    logWarning(s"load $count rows from $path")
 
     inputStream.close()
 
@@ -134,6 +142,7 @@ class FileSystemRowDataLookupFunction(
       func
     }.toArray
 
+    var count = 0
     while (recordReader.nextBatch(batch)) {
       var i = 0
       while (i < batch.size){
@@ -149,10 +158,15 @@ class FileSystemRowDataLookupFunction(
         }
 
         putRowToCache(row, cacheMap)
+        count += 1
+        if(count > cacheMaxSize){
+          throw new Exception(s"count:$count is greater than cacheMaxSize:$cacheMaxSize")
+        }
 
         i += 1
       }
     }
+    logWarning(s"load $count rows from $path")
 
     cacheMap
   }

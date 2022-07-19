@@ -1,5 +1,6 @@
 package scala.connector.filesystem
 
+import java.time.Duration
 import java.util
 
 import org.apache.flink.api.common.serialization.DeserializationSchema
@@ -63,5 +64,6 @@ class FileSystemTableFactory extends DynamicTableSourceFactory{
 
 object FileSystemTableFactory{
   val PATH = ConfigOptions.key("path").stringType.noDefaultValue
-
+  val LOOKUP_CACHE_MAX_ROWS = ConfigOptions.key("lookup.cache.max-rows").intType().defaultValue(100000)
+  val LOOKUP_CACHE_TTL = ConfigOptions.key("lookup.cache.ttl").durationType().defaultValue(Duration.ofHours(1))
 }

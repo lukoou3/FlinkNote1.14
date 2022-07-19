@@ -13,7 +13,9 @@ class FileSystemTableSource(
   path: String,
   physicalSchema: TableSchema,
   decodingFormat: DecodingFormat[DeserializationSchema[RowData]],
-  isOrc: Boolean
+  isOrc: Boolean,
+  cacheMaxSize: Int,
+  cacheExpireMs: Long
 ) extends LookupTableSource with Logging{
 
   def getLookupRuntimeProvider(context: LookupTableSource.LookupContext): LookupTableSource.LookupRuntimeProvider = {
@@ -27,12 +29,12 @@ class FileSystemTableSource(
 
     val deserializer = if(isOrc) null else decodingFormat.createRuntimeDecoder(context, physicalSchema.toPhysicalRowDataType)
 
-    val func = new FileSystemRowDataLookupFunction(path, fieldInfos, keyIndices, deserializer, isOrc)
+    val func = new FileSystemRowDataLookupFunction(path, fieldInfos, keyIndices, deserializer, isOrc, cacheMaxSize, cacheExpireMs)
 
     TableFunctionProvider.of(func)
   }
 
-  def copy(): DynamicTableSource = ???
+  def copy(): DynamicTableSource = new FileSystemTableSource(path, physicalSchema, decodingFormat, isOrc, cacheMaxSize, cacheExpireMs)
 
   def asSummaryString(): String = "myfilesystem"
 }
