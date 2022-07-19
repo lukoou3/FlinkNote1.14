@@ -25,7 +25,7 @@ class FileSystemTableSource(
       (col.getName, col.getType)
     }
 
-    val deserializer = decodingFormat.createRuntimeDecoder(context, physicalSchema.toPhysicalRowDataType)
+    val deserializer = if(isOrc) null else decodingFormat.createRuntimeDecoder(context, physicalSchema.toPhysicalRowDataType)
 
     val func = new FileSystemRowDataLookupFunction(path, fieldInfos, keyIndices, deserializer, isOrc)
 

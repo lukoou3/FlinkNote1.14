@@ -20,8 +20,15 @@ class FileSystemTableFactory extends DynamicTableSourceFactory{
 
     validateRequiredOptions(config)
 
-    val decodingFormat: DecodingFormat[DeserializationSchema[RowData]] = helper.discoverDecodingFormat(
-      classOf[DeserializationFormatFactory], FactoryUtil.FORMAT)
+    val format = config.get(FactoryUtil.FORMAT)
+
+    assert(Set("json", "orc").contains(format), "不支持的format类型")
+
+    val decodingFormat: DecodingFormat[DeserializationSchema[RowData]] = if(format != "orc"){
+      helper.discoverDecodingFormat(classOf[DeserializationFormatFactory], FactoryUtil.FORMAT)
+    }else{
+      null
+    }
 
     val physicalSchema = TableSchemaUtils.getPhysicalSchema(context.getCatalogTable.getSchema)
 
@@ -29,7 +36,7 @@ class FileSystemTableFactory extends DynamicTableSourceFactory{
       config.get(PATH),
       physicalSchema,
       decodingFormat,
-      false
+      format == "orc"
     )
   }
 

@@ -3,17 +3,21 @@ package scala.connector.filesystem
 import java.nio.charset.StandardCharsets
 import java.util
 
+import org.apache.commons.lang3.StringUtils
 import org.apache.flink.api.common.serialization.DeserializationSchema
 import org.apache.flink.table.data.{GenericRowData, RowData}
 import org.apache.flink.table.functions.{FunctionContext, TableFunction}
 import org.apache.flink.table.types.DataType
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.flink.table.types.logical.LogicalTypeRoot._
+import org.apache.hadoop.fs.{FileSystem, LocatedFileStatus, Path}
+import org.apache.orc.{OrcFile, Reader, TypeDescription}
 
 import scala.annotation.varargs
 import scala.io.Source
 import scala.log.Logging
 import scala.util.{LoadIntervalDataUtil, SingleValueMap}
 import scala.util.SingleValueMap.ResourceData
+import scala.collection.JavaConverters._
 
 class FileSystemRowDataLookupFunction(
   val path: String,
@@ -29,8 +33,8 @@ class FileSystemRowDataLookupFunction(
 
   override def open(context: FunctionContext): Unit = {
     keyFieldGetters = keyIndices.map(i => RowData.createFieldGetter(fieldInfos(i)._2.getLogicalType, i))
-    cache = SingleValueMap.acquireResourceData(path, LoadIntervalDataUtil(intervalMs = 60000 * 10) {
-      fetchDatasFromTextFile()
+    cache = SingleValueMap.acquireResourceData(path, LoadIntervalDataUtil(intervalMs = 60000 * 5) {
+      if(isOrc) fetchDatasFromOrcFile() else fetchDatasFromTextFile()
     })(_.stop())
     lookupKey = new GenericRowData(keyFieldGetters.length)
   }
@@ -52,27 +56,34 @@ class FileSystemRowDataLookupFunction(
     }
   }
 
+  def getFsPath: Path = {
+    val fs = FileSystem.get(new org.apache.hadoop.conf.Configuration)
+    val fsPath = new Path(path)
+    if(!fs.exists(fsPath)){
+      throw new Exception("文件不存在：" + path)
+    }
+
+    if(fs.isFile(fsPath)){
+      fsPath
+    }else{
+      val files = fs.listFiles(fsPath, false).toIter.map(_.getPath).filterNot(x => x.getName.startsWith("_") || x.getName.startsWith(".")).toArray
+      assert(files.length == 1, "只支持输入单个文件")
+      files(0)
+    }
+  }
+
   def fetchDatasFromTextFile(): CacheMap = {
     val cacheMap = new util.HashMap[RowData, List[RowData]]()
 
     val fs = FileSystem.get(new org.apache.hadoop.conf.Configuration)
-    val fsPath = new Path(path)
-    if(!fs.exists(fsPath)){
-      return cacheMap
-    }
+    val fsPath = getFsPath
 
     val inputStream = fs.open(fsPath)
 
     for (line <- Source.fromInputStream(inputStream, "utf-8").getLines().filter(_.trim != "")) {
       val lineByte = line.getBytes(StandardCharsets.UTF_8)
       val row = deserializer.deserialize(lineByte)
-      val key = extractKey(row)
-      val rows = cacheMap.get(key)
-      if(rows == null){
-        cacheMap.put(key, List(row))
-      }else{
-        cacheMap.put(key, row::rows)
-      }
+      putRowToCache(row, cacheMap)
     }
 
     inputStream.close()
@@ -80,10 +91,133 @@ class FileSystemRowDataLookupFunction(
     cacheMap
   }
 
+  def putRowToCache(row: RowData, cacheMap: CacheMap): Unit ={
+    val key = extractKey(row)
+    val rows = cacheMap.get(key)
+    if(rows == null){
+      cacheMap.put(key, List(row))
+    }else{
+      cacheMap.put(key, row::rows)
+    }
+  }
+
   def fetchDatasFromOrcFile(): CacheMap = {
     val cacheMap = new util.HashMap[RowData, List[RowData]]()
 
+    val capacity = 2048
+    val fsPath = getFsPath
+    val conf = new org.apache.hadoop.conf.Configuration
+    val reader = OrcFile.createReader(fsPath, OrcFile.readerOptions(conf))
+
+    val requestedIds = requestedColumnIds(fieldInfos, reader).get
+    val options = reader.options().include(parseInclude(reader.getSchema, requestedIds.mkString(",")))
+    val recordReader = reader.rows(options)
+    val schema = reader.getSchema
+
+    val batch = reader.getSchema.createRowBatch(capacity)
+
+    val orcVectorWrappers = requestedIds.zipWithIndex.map{ case(idx, i) =>
+      //val typ = schema.getChildren.get(idx)
+      val col = batch.cols(idx)
+      new OrcColumnVector(fieldInfos(i)._2, col)
+    }.toArray
+
+    val getters = fieldInfos.zipWithIndex.map { case ((_, dataType), i) =>
+      val func: (OrcColumnVector, Int) => Any = dataType.getLogicalType.getTypeRoot match {
+        case VARCHAR | CHAR => (col, i) => col.getString(i)
+        case INTEGER => (col, i) => col.getInt(i)
+        case BIGINT => (col, i) => col.getLong(i)
+        case FLOAT => (col, i) => col.getFloat(i)
+        case DOUBLE => (col, i) => col.getDouble(i)
+        case _ => throw new UnsupportedOperationException(s"unsupported data type ${dataType.getLogicalType.getTypeRoot}")
+      }
+      func
+    }.toArray
+
+    while (recordReader.nextBatch(batch)) {
+      var i = 0
+      while (i < batch.size){
+        var j = 0
+
+        val row = new GenericRowData(getters.length)
+        while (j < getters.length){
+          val vector = orcVectorWrappers(j)
+          if(!vector.isNullAt(i)){
+            row.setField(j, getters(j)(vector, i))
+          }
+          j += 1
+        }
+
+        putRowToCache(row, cacheMap)
+
+        i += 1
+      }
+    }
+
     cacheMap
+  }
+
+  def requestedColumnIds(fieldInfos: Seq[(String, DataType)], reader: Reader): Option[Array[Int]] = {
+    val orcFieldNames = reader.getSchema.getFieldNames.asScala
+    if (orcFieldNames.isEmpty) {
+      // SPARK-8501: Some old empty ORC files always have an empty schema stored in their footer.
+      None
+    } else {
+      if (orcFieldNames.forall(_.startsWith("_col"))) {
+        // This is a ORC file written by Hive, no field names in the physical schema, assume the
+        // physical schema maps to the data scheme by index.
+        assert(orcFieldNames.length == fieldInfos.length, "The given data schema " +
+          s"${fieldInfos.mkString(", ")} has less fields than the actual ORC physical schema, " +
+          "no idea which columns were dropped, fail to read.")
+        // for ORC file written by Hive, no field names
+        // in the physical schema, there is a need to send the
+        // entire dataSchema instead of required schema.
+        // So pruneCols is not done in this case
+        Some( (0 until orcFieldNames.length).toArray )
+      }else{
+        assert(orcFieldNames.map(_.toLowerCase).toSet.size == orcFieldNames.length, "不区分大小写后有重复的列名")
+
+        Some(fieldInfos.map(_._1).map { name =>
+          val idx = orcFieldNames.indexWhere(_.toLowerCase == name.toLowerCase)
+          assert(idx >= 0, "不存在的列：" + name)
+          idx
+        }.toArray)
+      }
+    }
+  }
+
+  /**
+   * [org.apache.orc.mapred.OrcInputFormat#buildOptions]
+   * [org.apache.orc.mapred.OrcInputFormat#parseInclude]
+   *
+   * Convert a string with a comma separated list of column ids into the
+   * array of boolean that match the schemas.
+   *
+   * @param schema     the schema for the reader
+   * @param columnsStr the comma separated list of column ids
+   * @return a boolean array
+   */
+  def parseInclude(schema: TypeDescription, columnsStr: String): Array[Boolean] = {
+    if (columnsStr == null || (schema.getCategory ne TypeDescription.Category.STRUCT)){
+      return null
+    }
+
+    val result = new Array[Boolean](schema.getMaximumId + 1)
+    result(0) = true
+
+    if (StringUtils.isBlank(columnsStr)){
+      return result
+    }
+
+    val types = schema.getChildren
+    for (idString <- columnsStr.split(",")) {
+      val typeDesc = types.get(idString.toInt)
+      for (c <- typeDesc.getId to typeDesc.getMaximumId) {
+        result(c) = true
+      }
+    }
+
+    result
   }
 
   def extractKey(row: RowData) : RowData = {
