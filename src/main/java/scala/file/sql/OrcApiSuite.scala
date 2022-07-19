@@ -5,6 +5,8 @@ import java.util
 import java.util.List
 
 import org.apache.commons.lang3.StringUtils
+import org.apache.flink.table.types.AtomicDataType
+import org.apache.flink.table.types.logical.IntType
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.ql.exec.vector.{BytesColumnVector, ColumnVector, LongColumnVector, TimestampColumnVector}
 import org.apache.orc.TypeDescription.Category
@@ -12,6 +14,7 @@ import org.apache.orc.{OrcConf, OrcFile, TypeDescription}
 import org.scalatest.funsuite.AnyFunSuite
 
 import scala.collection.JavaConverters._
+import scala.file.orc.OrcColumnVector
 
 /**
  * orc官方api
@@ -150,6 +153,41 @@ class OrcApiSuite extends AnyFunSuite{
         i += 1
         count += 1
       }
+    }
+
+    println(s"count:$count")
+
+    recordReader.close()
+  }
+
+  test("orc_api4"){
+    val capacity = 1024
+    // initialize
+    val conf = new org.apache.hadoop.conf.Configuration
+    val reader = OrcFile.createReader(
+      //new Path("file:///D:/chromedownload/dim_common_province_a.orc"),
+      new Path("file:///D:/chromedownload/pin_ord_stat.snappy.orc"),
+      OrcFile.readerOptions(conf))
+
+    val options = reader.options().include(parseInclude(reader.getSchema, "0,1"))
+    //val recordReader = reader.rows(options)
+    val recordReader = reader.rows
+
+    val schema = reader.getSchema
+    println(schema.toString)
+
+
+    // initBatch
+    val batch = reader.getSchema.createRowBatch(capacity)
+    val orcVectorWrappers = schema.getChildren.asScala.zip(batch.cols).map{case(typ, col) =>
+      val dataType = new AtomicDataType(new IntType)
+      new OrcColumnVector(dataType, col)
+    }
+
+    var count = 0
+    while (recordReader.nextBatch(batch)) {
+      batch.cols
+      var i = 0
     }
 
     println(s"count:$count")
