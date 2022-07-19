@@ -225,7 +225,7 @@ class FileSystemRowDataLookupFunction(
 
     val types = schema.getChildren
     for (idString <- columnsStr.split(",")) {
-      val typeDesc = types.get(idString.toInt)
+      val typeDesc = types.get(idString.trim.toInt)
       for (c <- typeDesc.getId to typeDesc.getMaximumId) {
         result(c) = true
       }
