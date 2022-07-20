@@ -19,6 +19,8 @@ import org.apache.flink.table.types.logical.LogicalTypeRoot.{BIGINT, CHAR, DOUBL
 import scala.collection.JavaConverters._
 import scala.connector.common.Utils
 
+import scala.util.TsUtils.{DAY_UNIT, HOUR_UNIT, hourOfDay, minuteOfHour, weekDay}
+
 package object jdbc {
 
   //JdbcSinkOptions
@@ -32,6 +34,33 @@ package object jdbc {
 
   trait PeriodExecSqlStrategy extends Serializable {
     def sqlsThisTime(ts: Long): List[String]
+  }
+
+  // 每日执行一次sql, 默认凌晨0点0分左右
+  class PeriodExecSqlStrategyOncePerDay(hour:Int = 0, minute:Int = 0)(getSqls: Long => List[String]) extends PeriodExecSqlStrategy{
+    var lastExecSqlTs: Long = 0L
+    override def sqlsThisTime(ts: Long): List[String] = {
+      if (ts - lastExecSqlTs >= HOUR_UNIT * 11 && hourOfDay(ts) == hour && minuteOfHour(ts) >= minute) {
+        lastExecSqlTs = ts
+        getSqls(ts)
+      }else{
+        Nil
+      }
+    }
+  }
+
+  // 每周执行一次sql, 默认周一凌晨0点0分左右
+  class PeriodExecSqlStrategyOncePerWeek(week:Int = 0, hour:Int = 0, minute:Int = 0)(getSqls: Long => List[String]) extends PeriodExecSqlStrategy{
+    var lastExecSqlTs: Long = 0L
+    override def sqlsThisTime(ts: Long): List[String] = {
+      if (ts - lastExecSqlTs >= DAY_UNIT * 6 && weekDay(ts) == week
+        && hourOfDay(ts) == hour && minuteOfHour(ts) >= minute) {
+        lastExecSqlTs = ts
+        getSqls(ts)
+      }else{
+        Nil
+      }
+    }
   }
 
   implicit class ProductDataStreamJdbcFunctions[T <: Product : TypeInformation](ds: DataStream[T]) {
