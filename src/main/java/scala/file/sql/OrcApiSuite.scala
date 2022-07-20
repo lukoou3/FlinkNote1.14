@@ -10,7 +10,8 @@ import org.apache.flink.table.api.DataTypes
 import org.apache.flink.table.types.AtomicDataType
 import org.apache.flink.table.types.logical.IntType
 import org.apache.hadoop.fs.Path
-import org.apache.hadoop.hive.ql.exec.vector.{BytesColumnVector, ColumnVector, LongColumnVector, TimestampColumnVector}
+import org.apache.hadoop.hive.ql.exec.vector._;
+//import org.apache.orc.storage.ql.exec.vector._;
 import org.apache.orc.TypeDescription.Category
 import org.apache.orc.{OrcConf, OrcFile, TypeDescription}
 import org.scalatest.funsuite.AnyFunSuite

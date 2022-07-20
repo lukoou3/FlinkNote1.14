@@ -100,11 +100,12 @@ class FileSystemLookupSuite extends AnyFunSuite with BeforeAndAfterAll{
       province_id bigint,
       -- 可以使用计算列
       -- province_name as cast(province_id as c)
-      province_name province_name
+      province_name string
     ) WITH (
       'connector' = 'myfilesystem',
       -- 'path' = 'file:///D:/ideaProjects/FlinkNote1.14/files/dim_common_province_a.orc',
       'path' = 'file:///D:/ChromeDownload/orc',
+      'lookup.cache.ttl' = '1 min',
       'format' = 'orc'
     )
     """

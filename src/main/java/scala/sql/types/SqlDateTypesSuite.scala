@@ -11,11 +11,14 @@ import org.apache.flink.streaming.api.scala._
 import org.apache.flink.table.api.{DataTypes, EnvironmentSettings, Schema}
 import org.apache.flink.table.api.bridge.scala._
 import org.apache.flink.table.api.bridge.scala.internal.StreamTableEnvironmentImpl
+import org.apache.flink.table.data.conversion.DataStructureConverters
 import org.apache.flink.table.data.{GenericRowData, RowData, StringData}
+import org.apache.flink.table.runtime.connector.sink.DataStructureConverterWrapper
 import org.apache.flink.table.runtime.typeutils.{ExternalTypeInfo, InternalTypeInfo}
 import org.apache.flink.table.types.logical.utils.LogicalTypeUtils
 import org.apache.flink.table.types.{DataType, FieldsDataType}
 import org.apache.flink.table.types.logical.{LogicalType, RowType}
+import org.apache.flink.table.types.utils.TypeInfoDataTypeConverter
 import org.apache.flink.types.Row
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
@@ -338,6 +341,9 @@ class SqlDateTypesSuite extends AnyFunSuite with BeforeAndAfterAll {
     table.toDataStream.print()
   }
 
+  test("class_to_RowData"){
+
+  }
 
   /**
    * 之前的直接通过传入可变参数重命名列名和定义处理/事件时间的方法被标记废弃了
@@ -353,9 +359,23 @@ class SqlDateTypesSuite extends AnyFunSuite with BeforeAndAfterAll {
       People(3, "cc", 21, 90.2, Instant.ofEpochMilli(1002))
     )
 
+    // scala类的typeinfo要使用scala隐式参数推导，TypeInformation.of(classOf[People])这种方式并不能解析的到
+    //val ds = env.fromCollection(datas)(TypeInformation.of(classOf[People]))
     val ds = env.fromCollection(datas)
 
+    //val inputTypeInfo = TypeInformation.of(classOf[People])
+    val inputTypeInfo = implicitly[TypeInformation[People]]
+    val inputDataType = TypeInfoDataTypeConverter.toDataType(tEnv.asInstanceOf[StreamTableEnvironmentImpl].getCatalogManager.getDataTypeFactory,
+      inputTypeInfo)
+    println(inputDataType)
+
     /**
+     * new DataStructureConverterWrapper(DataStructureConverters.getConverter(producedDataType))
+     *    org.apache.flink.table.runtime.connector.source.DataStructureConverterWrapper:
+     *        structureConverter.toInternalOrNull(externalStructure)
+     *    org.apache.flink.table.runtime.connector.sink.DataStructureConverterWrapper:
+     *        structureConverter.toExternalOrNull(internalStructure)
+     *
      * 自动推断所有的physical columns
      * ds的.TypeInfo和sql的DataType的对应关系在：[[org.apache.flink.table.types.utils.TypeInfoDataTypeConverter.conversionMap]]
      * Instant对应TIMESTAMP_LTZ
@@ -377,7 +397,10 @@ class SqlDateTypesSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     table.printSchema()
 
-    table.execute().print()
+    //table.execute().print()
+    table.toDataStream.addSink { row =>
+      println(row)
+    }
   }
 
   test("ds转table_Row") {
@@ -816,10 +839,20 @@ class SqlDateTypesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val table = tEnv.sqlQuery("select name,age,cnt,data,datas from tmp_tb1")
 
     /**
+     * 把RowData转成外部类型
+     */
+    val dataType = DataTypes.of(classOf[TableCaseData]).toDataType(tEnv.asInstanceOf[StreamTableEnvironmentImpl].getCatalogManager.getDataTypeFactory)
+    println(dataType)
+    val structureConverter = DataStructureConverters.getConverter(dataType)
+    //new DataStructureConverterWrapper(DataStructureConverters.getConverter(dataType))
+
+    /**
      * table转ds会加一个filter校验过滤非空属性，默认data中的非空属性table这行实际的列值为null时会抛出异常
      * 设置'table.exec.sink.not-null-enforcer'='drop'后，会直接把这一行给直接过滤掉，肯定不能设置这个
      * 这个是运行时报错的，要是实际就没null，转的data中使用原生类型也是不会报错的。不是编译阶段报错
      * org.apache.flink.table.runtime.operators.sink.SinkNotNullEnforcer
+     *
+     * 实际相当于调用：toDataStream(table, DataTypes.of(targetClass))
      */
     val dataDs = table.toDataStream(classOf[TableCaseData])
     println(dataDs.dataType)

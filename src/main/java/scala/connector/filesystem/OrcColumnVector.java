@@ -3,6 +3,7 @@ package scala.connector.filesystem;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.DataType;
 import org.apache.hadoop.hive.ql.exec.vector.*;
+//import org.apache.orc.storage.ql.exec.vector.*;
 
 import static org.apache.flink.table.types.logical.LogicalTypeRoot.DATE;
 import static org.apache.flink.table.types.logical.LogicalTypeRoot.TIMESTAMP_WITH_TIME_ZONE;
@@ -35,6 +36,7 @@ public class OrcColumnVector {
         }
 
         baseData = vector;
+        System.out.println(LongColumnVector.class.getProtectionDomain().getCodeSource().getLocation());
         if (vector instanceof LongColumnVector) {
             longData = (LongColumnVector) vector;
         } else if (vector instanceof DoubleColumnVector) {

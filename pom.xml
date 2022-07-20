@@ -164,7 +164,7 @@
             </exclusions>
         </dependency>
 
-        <dependency>
+        <!--<dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-sql-connector-hive-1.2.2_2.11</artifactId>
             <version>${flink.version}</version>
@@ -175,7 +175,7 @@
                     <artifactId>flink-shaded-force-shading</artifactId>
                 </exclusion>
             </exclusions>
-        </dependency>
+        </dependency>-->
 
         <dependency>
             <groupId>com.alibaba</groupId>

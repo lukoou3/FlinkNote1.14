@@ -59,16 +59,20 @@ class FileSystemRowDataLookupFunction(
   }
 
   def getFsPath: Path = {
+    logWarning("a" * 5)
     val fs = FileSystem.get(new org.apache.hadoop.conf.Configuration)
+    logWarning("b" * 5)
     val fsPath = new Path(path)
     if(!fs.exists(fsPath)){
       throw new Exception("文件不存在：" + path)
     }
+    logWarning("c" * 6)
 
     if(fs.isFile(fsPath)){
       fsPath
     }else{
       val files = fs.listFiles(fsPath, false).toIter.map(_.getPath).filterNot(x => x.getName.startsWith("_") || x.getName.startsWith(".")).toArray
+      logWarning("d" * 5)
       assert(files.length == 1, "只支持输入单个文件")
       files(0)
     }
@@ -112,15 +116,19 @@ class FileSystemRowDataLookupFunction(
   def fetchDatasFromOrcFile(): CacheMap = {
     val cacheMap = new util.HashMap[RowData, List[RowData]]()
 
+    logWarning("1" * 5)
     val capacity = 2048
     val fsPath = getFsPath
+    logWarning("2" * 5)
     val conf = new org.apache.hadoop.conf.Configuration
     val reader = OrcFile.createReader(fsPath, OrcFile.readerOptions(conf))
+    logWarning("3" * 5)
 
     val requestedIds = requestedColumnIds(fieldInfos, reader).get
     val options = reader.options().include(parseInclude(reader.getSchema, requestedIds.mkString(",")))
     val recordReader = reader.rows(options)
     val schema = reader.getSchema
+    logWarning("4" * 5)
 
     val batch = reader.getSchema.createRowBatch(capacity)
 

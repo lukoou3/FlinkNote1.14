@@ -2,6 +2,7 @@ package scala.file.orc;
 
 import org.apache.flink.table.data.StringData;
 import org.apache.hadoop.hive.ql.exec.vector.*;
+//import org.apache.orc.storage.ql.exec.vector.*;
 import org.apache.flink.table.types.DataType;
 
 import static org.apache.flink.table.types.logical.LogicalTypeRoot.*;
