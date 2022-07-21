@@ -109,3 +109,68 @@ class ConcatWs extends InternalScalarFunction{
 
   override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = DataTypes.STRING()
 }
+
+class UrlDecode extends InternalScalarFunction{
+  var enc: String = "UTF-8"
+
+  def eval(url: StringData): StringData = {
+    if(url == null){
+      null
+    }else{
+      val decodedUrl = java.net.URLDecoder.decode(url.toString, this.enc)
+      StringData.fromString(decodedUrl)
+    }
+  }
+
+  def eval(url: StringData, enc: StringData): StringData = {
+   eval(url)
+  }
+
+  override def argumentCount: ArgumentCount = betweenArgumentCount(1, 2)
+
+  override def stringArgs: Seq[String] = Seq("url", "enc")
+
+  override def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] = args.map(_ => stringDateType)
+
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+    if(args.length == 2){
+      assert(callContext.isArgumentLiteral(1), "enc必须是字面量")
+      enc = callContext.getArgumentValue(1,  classOf[String]).get()
+    }
+
+    stringDateType
+  }
+}
+
+class UrlDecode2 extends InternalScalarFunction{
+  var enc: String = "UTF-8"
+
+  def eval(url: StringData): StringData = {
+    if(url == null){
+      null
+    }else{
+      var decodedUrl = java.net.URLDecoder.decode(url.toString, this.enc)
+      decodedUrl = java.net.URLDecoder.decode(decodedUrl, this.enc)
+      StringData.fromString(decodedUrl)
+    }
+  }
+
+  def eval(url: StringData, enc: StringData): StringData = {
+    eval(url)
+  }
+
+  override def argumentCount: ArgumentCount = betweenArgumentCount(1, 2)
+
+  override def stringArgs: Seq[String] = Seq("url", "enc")
+
+  override def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] = args.map(_ => stringDateType)
+
+  override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
+    if(args.length == 2){
+      assert(callContext.isArgumentLiteral(1), "enc必须是字面量")
+      enc = callContext.getArgumentValue(1,  classOf[String]).get()
+    }
+
+    stringDateType
+  }
+}
