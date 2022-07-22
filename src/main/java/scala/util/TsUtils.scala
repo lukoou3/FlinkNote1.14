@@ -279,7 +279,6 @@ object TsUtils {
     cal.set(Calendar.MILLISECOND, 0)
 
     println(cal)
-    println(new DateTime(cal.getTime()))
     // (1 = Sunday, 2 = Monday, ..., 7 = Saturday).
     println(cal.get(Calendar.DAY_OF_WEEK))
   }

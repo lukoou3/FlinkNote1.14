@@ -13,6 +13,7 @@ import scala.collection.JavaConverters._
 import InternalScalarFunction._
 import scala.annotation.varargs
 import scala.collection.Iterator
+import scala.log.Logging
 
 class SubstringIndex extends InternalScalarFunction {
 
@@ -110,20 +111,27 @@ class ConcatWs extends InternalScalarFunction{
   override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = DataTypes.STRING()
 }
 
-class UrlDecode extends InternalScalarFunction{
-  var enc: String = "UTF-8"
+class UrlDecode extends InternalScalarFunction with Logging{
+  var enc = "UTF-8"
 
   def eval(url: StringData): StringData = {
     if(url == null){
       null
     }else{
-      val decodedUrl = java.net.URLDecoder.decode(url.toString, this.enc)
-      StringData.fromString(decodedUrl)
+      try {
+        val decodedUrl = java.net.URLDecoder.decode(url.toString, this.enc)
+        StringData.fromString(decodedUrl)
+      } catch {
+        case e:Exception =>
+          println(s"UrlDecode失败 for:$url.toString")
+          logError(s"UrlDecode失败 for:$url.toString", e)
+          url
+      }
     }
   }
 
   def eval(url: StringData, enc: StringData): StringData = {
-   eval(url)
+    eval(url)
   }
 
   override def argumentCount: ArgumentCount = betweenArgumentCount(1, 2)
@@ -142,33 +150,48 @@ class UrlDecode extends InternalScalarFunction{
   }
 }
 
-class UrlDecode2 extends InternalScalarFunction{
-  var enc: String = "UTF-8"
+class UrlDecode2 extends InternalScalarFunction with Logging {
+  var decodeCount = 2
+  var enc = "UTF-8"
 
-  def eval(url: StringData): StringData = {
+  def eval(url: StringData, decodeCnt :Int): StringData = {
     if(url == null){
       null
     }else{
-      var decodedUrl = java.net.URLDecoder.decode(url.toString, this.enc)
-      decodedUrl = java.net.URLDecoder.decode(decodedUrl, this.enc)
+      var decodedUrl = url.toString
+      try {
+        var i = 0
+        while (i < decodeCnt) {
+          decodedUrl = java.net.URLDecoder.decode(decodedUrl, this.enc)
+          i += 1
+        }
+      } catch {
+        case e:Exception =>
+          println(s"UrlDecode失败 for:$decodedUrl , first is:$url.toString")
+          logError(s"UrlDecode失败 for:$decodedUrl , first is:$url.toString", e)
+      }
       StringData.fromString(decodedUrl)
     }
   }
 
-  def eval(url: StringData, enc: StringData): StringData = {
-    eval(url)
+  def eval(url: StringData, decodeCnt :Int, enc: StringData): StringData = {
+    eval(url, decodeCnt)
   }
 
-  override def argumentCount: ArgumentCount = betweenArgumentCount(1, 2)
+  override def argumentCount: ArgumentCount = betweenArgumentCount(2, 3)
 
-  override def stringArgs: Seq[String] = Seq("url", "enc")
+  override def stringArgs: Seq[String] = Seq("url", "decode_count", "enc")
 
-  override def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] = args.map(_ => stringDateType)
+  override def inferInputTypes(args: Seq[DataType], callContext: CallContext): Seq[DataType] = args.zipWithIndex.map{case(_, i) =>
+    if(i==1) intDateType else stringDateType
+  }
 
   override def inferOutputType(args: Seq[DataType], callContext: CallContext, typeFactory: DataTypeFactory): DataType = {
-    if(args.length == 2){
-      assert(callContext.isArgumentLiteral(1), "enc必须是字面量")
-      enc = callContext.getArgumentValue(1,  classOf[String]).get()
+    assert(callContext.isArgumentLiteral(1), "decode_count必须是字面量")
+    decodeCount = callContext.getArgumentValue(1,  classOf[java.lang.Integer]).get()
+    if(args.length == 3){
+      assert(callContext.isArgumentLiteral(2), "enc必须是字面量")
+      enc = callContext.getArgumentValue(2,  classOf[String]).get()
     }
 
     stringDateType
