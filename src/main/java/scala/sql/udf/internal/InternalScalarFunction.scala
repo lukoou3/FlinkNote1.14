@@ -3,10 +3,14 @@ package scala.sql.udf.internal
 import java.util
 import java.util.{Collections, Optional}
 
+import org.apache.calcite.rex.RexCallBinding
+import org.apache.calcite.sql.{SqlCallBinding, SqlOperatorBinding}
 import org.apache.flink.table.catalog.DataTypeFactory
 import org.apache.flink.table.data.{ArrayData, MapData, RowData, StringData, TimestampData}
 import org.apache.flink.table.functions.{FunctionDefinition, ScalarFunction, SpecializedFunction, UserDefinedFunction}
+import org.apache.flink.table.planner.functions.inference.OperatorBindingCallContext
 import org.apache.flink.table.types.inference.Signature.Argument
+import org.apache.flink.table.types.inference.utils.AdaptedCallContext
 import org.apache.flink.table.types.{AtomicDataType, DataType}
 import org.apache.flink.table.types.inference.{ArgumentCount, CallContext, ConstantArgumentCount, InputTypeStrategy, Signature, TypeInference, TypeStrategy}
 import org.apache.flink.table.types.logical.LogicalTypeRoot._
@@ -18,13 +22,17 @@ import scala.math.Ordering
 abstract class InternalScalarFunction extends ScalarFunction with SpecializedFunction{
   self =>
   import InternalScalarFunction._
-  var funcId = nextFuncId
+  private var funcId = nextFuncId
+  private var callInfo = ""
+
+  def funcCallInfo = callInfo
 
   override def specialize(context: SpecializedFunction.SpecializedContext): UserDefinedFunction = {
     val clazz = context.getCallContext.getFunctionDefinition.getClass
     println("specialize")
     val func = clazz.newInstance()
     func.asInstanceOf[InternalScalarFunction].funcId = nextFuncId
+    func.asInstanceOf[InternalScalarFunction].callInfo = callInfo
     func.asInstanceOf[UserDefinedFunction]
   }
 
@@ -57,6 +65,17 @@ abstract class InternalScalarFunction extends ScalarFunction with SpecializedFun
       )
       .outputTypeStrategy(new TypeStrategy {
         override def inferType(callContext: CallContext): Optional[DataType] = {
+          if(callContext.isInstanceOf[AdaptedCallContext]){
+            val originalContext = originalContextField.get(callContext)
+            if(originalContext != null && originalContext.isInstanceOf[OperatorBindingCallContext]){
+              val binding = bindingField.get(originalContext)
+              if(binding != null && binding.isInstanceOf[RexCallBinding]){
+                val call = binding.asInstanceOf[RexCallBinding]
+                callInfo = s"${call.getOperator.getName}(${call.operands().asScala.mkString(", ")})"
+              }
+            }
+          }
+
           funcId = nextFuncId
           val dType: DataType = self.inferOutputType(callContext.getArgumentDataTypes().asScala, callContext, typeFactory)
           val claszz = dataTypeConversionClass(dType)
@@ -74,6 +93,18 @@ object InternalScalarFunction{
   def nextFuncId: Int = synchronized {
     funcId = funcId + 1
     funcId
+  }
+
+  val bindingField = {
+    val field = classOf[OperatorBindingCallContext].getDeclaredField("binding")
+    field.setAccessible(true)
+    field
+  }
+
+  val originalContextField = {
+    val field = classOf[AdaptedCallContext].getDeclaredField("originalContext")
+    field.setAccessible(true)
+    field
   }
 
   def anyArgumentCount = ConstantArgumentCount.any()

@@ -27,12 +27,34 @@ class TypeInformationSuite extends AnyFunSuite {
     println(pojoTypeInformation)
   }
 
+  test("pojoScalaBean2"){
+    val pojoTypeInformation: TypeInformation[ScalaBean3] = getTypeInformation[ScalaBean3]()
+    println(pojoTypeInformation.getClass)
+    println(pojoTypeInformation)
+
+    val pojoTypeInformation2: TypeInformation[ScalaBean3] = TypeInformation.of(classOf[ScalaBean3])
+    println(pojoTypeInformation2.getClass)
+    println(pojoTypeInformation2)
+  }
+
+  test("pojoScalaBean3"){
+    val pojoTypeInformation: TypeInformation[ScalaBean4] = getTypeInformation[ScalaBean4]()
+    println(pojoTypeInformation.getClass)
+    println(pojoTypeInformation)
+
+    val pojoTypeInformation2: TypeInformation[ScalaBean4] = TypeInformation.of(classOf[ScalaBean4])
+    println(pojoTypeInformation2.getClass)
+    println(pojoTypeInformation2)
+  }
+
   test("ScalaCase"){
     val caseClassTypeInformation: TypeInformation[ScalaCase] = getTypeInformation[ScalaCase]()
     println(caseClassTypeInformation.getClass)
     println(caseClassTypeInformation.isInstanceOf[CaseClassTypeInfo[_]])
     println(caseClassTypeInformation)
   }
+
+
 
 }
 
@@ -49,6 +71,7 @@ object TypeInformationSuite{
     var birthday: String = null
   ) extends Serializable
 
+
   class ScalaBean2 extends Serializable{
     @BeanProperty
     var code: Int = 0
@@ -57,6 +80,24 @@ object TypeInformationSuite{
     @BeanProperty
     var age: Int = 0
     @BeanProperty
+    var birthday: String = null
+  }
+
+  class ScalaBean3 extends Serializable{
+    @BeanProperty
+    var code: Int = 0
+    @BeanProperty
+    var name: String = null
+    @BeanProperty
+    var age: Option[Int] = None
+    @BeanProperty
+    var birthday: String = null
+  }
+
+  class ScalaBean4 extends Serializable{
+    var code: Int = 0
+    var name: String = null
+    var age: Option[Int] = None
     var birthday: String = null
   }
 
