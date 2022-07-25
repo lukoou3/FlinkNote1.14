@@ -16,23 +16,33 @@ class OrcMergeFileSuite extends AnyFunSuite{
 
   test("merge"){
     val fs = FileSystem.get(new Configuration())
-    val fsPath = new Path("file:///F:/hadoop/orc_file_merge_test")
-    val files = fs.listFiles(fsPath, false).toIter.map(_.getPath).filterNot(x => x.getName.startsWith("_") || x.getName.startsWith(".")).toBuffer.asJava
+    val dirPath = new Path("file:///F:/hadoop/orc_file_merge_test")
+    val files = fs.listFiles(dirPath, false).toIter.map(_.getPath).filterNot(x => x.getName.startsWith("_") || x.getName.startsWith(".")).toBuffer.asJava
     files.asScala.foreach(println(_))
 
-    val mergedPath = new Path("file:///F:/hadoop/orc_file_merge_test/part_merged.orc")
+    val mergeingFileName = ".part_mergeing.orc"
+    val mergedFileName = "part_merged.orc"
+
+    val mergeingPath = new Path(dirPath + "/" + mergeingFileName)
+    val mergedPath = new Path(dirPath + "/" + mergedFileName)
     val writerOptions = OrcFile.writerOptions(new Configuration())
     val inputPaths = files
 
-    if(fs.exists(mergedPath)){
-      fs.delete(mergedPath, false)
-    }
+    /*if(fs.exists(mergeingPath)){
+      fs.delete(mergeingPath, false)
+    }*/
     println()
 
-    val rstPaths = OrcFile.mergeFiles(mergedPath, writerOptions, inputPaths)
+    val rstPaths = OrcFile.mergeFiles(mergeingPath, writerOptions, inputPaths)
+    fs.rename(mergeingPath, mergedPath)
     rstPaths.asScala.foreach(println(_))
 
-    val paths = fs.listFiles(fsPath, false).toIter.map(_.getPath).filterNot(x => x.getName.startsWith("_") || x.getName.startsWith(".")).toBuffer
+    val crcPath = new Path(dirPath + "/" + ".part_mergeing.orc.crc")
+    if(fs.exists(crcPath)){
+      fs.delete(crcPath, false)
+    }
+
+    val paths = fs.listFiles(dirPath, false).toIter.map(_.getPath).filterNot(x => x.getName.startsWith("_") || x.getName.startsWith(".")).toBuffer
     readFile(paths)
   }
 
