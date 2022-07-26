@@ -3,7 +3,7 @@ package scala.file.sql
 import com.alibaba.fastjson.JSON
 import org.apache.flink.table.api.DataTypes
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.{FileSystem, LocatedFileStatus, Path}
 import org.apache.orc.OrcFile
 import org.apache.orc.TypeDescription.Category
 import org.scalatest.funsuite.AnyFunSuite
@@ -17,7 +17,16 @@ class OrcMergeFileSuite extends AnyFunSuite{
   test("merge"){
     val fs = FileSystem.get(new Configuration())
     val dirPath = new Path("file:///F:/hadoop/orc_file_merge_test")
-    val files = fs.listFiles(dirPath, false).toIter.map(_.getPath).filterNot(x => x.getName.startsWith("_") || x.getName.startsWith(".")).toBuffer.asJava
+    val files = fs.listFiles(dirPath, false).toIter.filterNot(x => x.getPath.getName.startsWith("_") || x.getPath.getName.startsWith("."))
+      .toBuffer.map(_.getPath).asJava
+    /*files.asScala.foldLeft((1, 0L, List[LocatedFileStatus]())){ case ((n, size, files), file) =>
+      val fileSize = file.getLen
+      if(size + fileSize <= 1024 * 1024){
+        (n, size + fileSize, file::files)
+      }else{
+        (n + 1, size, List(file))
+      }
+    }*/
     files.asScala.foreach(println(_))
 
     val mergeingFileName = ".part_mergeing.orc"
