@@ -9,46 +9,64 @@ import org.apache.orc.TypeDescription.Category
 import org.scalatest.funsuite.AnyFunSuite
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ArrayBuffer
 import scala.file.orc.OrcColumnVector
 
 class OrcMergeFileSuite extends AnyFunSuite{
   import OrcMergeFileSuite._
 
-  test("merge"){
-    val fs = FileSystem.get(new Configuration())
-    val dirPath = new Path("file:///F:/hadoop/orc_file_merge_test")
-    val files = fs.listFiles(dirPath, false).toIter.filterNot(x => x.getPath.getName.startsWith("_") || x.getPath.getName.startsWith("."))
-      .toBuffer.map(_.getPath).asJava
-    /*files.asScala.foldLeft((1, 0L, List[LocatedFileStatus]())){ case ((n, size, files), file) =>
+  def getInputPathsGroup(fileStatus: Seq[LocatedFileStatus]): Seq[(Int, Long, Seq[Path])] = {
+    val inputPathsGroup = new ArrayBuffer[(Int, Long, Seq[Path])]()
+    var size = 0L
+    var inputPaths = new ArrayBuffer[Path]()
+    for (file <- fileStatus) {
       val fileSize = file.getLen
       if(size + fileSize <= 1024 * 1024){
-        (n, size + fileSize, file::files)
+        inputPaths += file.getPath
+        inputPathsGroup += ((inputPathsGroup.size, size + fileSize, inputPaths))
+        inputPaths = new ArrayBuffer[Path]()
       }else{
-        (n + 1, size, List(file))
+        inputPaths += file.getPath
+        size += fileSize
       }
-    }*/
-    files.asScala.foreach(println(_))
+    }
+    if(inputPaths.nonEmpty){
+      inputPathsGroup += ((inputPathsGroup.size, size, inputPaths))
+    }
+    inputPathsGroup
+  }
 
-    val mergeingFileName = ".part_mergeing.orc"
-    val mergedFileName = "part_merged.orc"
+  def mergeFiles(dirPath: Path, i:Int, inputPaths: Seq[Path], fs: FileSystem): Unit ={
+    val mergeingFileName = s".part_mergeing-$i.orc"
+    val mergedFileName = s"part_merged-$i.orc"
 
     val mergeingPath = new Path(dirPath + "/" + mergeingFileName)
     val mergedPath = new Path(dirPath + "/" + mergedFileName)
     val writerOptions = OrcFile.writerOptions(new Configuration())
-    val inputPaths = files
 
-    /*if(fs.exists(mergeingPath)){
-      fs.delete(mergeingPath, false)
-    }*/
-    println()
 
-    val rstPaths = OrcFile.mergeFiles(mergeingPath, writerOptions, inputPaths)
+    val rstPaths = OrcFile.mergeFiles(mergeingPath, writerOptions, inputPaths.asJava)
     fs.rename(mergeingPath, mergedPath)
     rstPaths.asScala.foreach(println(_))
 
-    val crcPath = new Path(dirPath + "/" + ".part_mergeing.orc.crc")
+    val crcPath = new Path(dirPath + "/" + "." +  mergeingFileName + ".crc")
     if(fs.exists(crcPath)){
       fs.delete(crcPath, false)
+    }
+  }
+
+  test("merge"){
+    val fs = FileSystem.get(new Configuration())
+    val dirPath = new Path("file:///F:/hadoop/orc_file_merge_test")
+    val fileStatus = fs.listFiles(dirPath, false).toIter.filterNot(x => x.getPath.getName.startsWith("_") || x.getPath.getName.startsWith("."))
+      .toBuffer
+
+    val inputPathsGroup = getInputPathsGroup(fileStatus)
+
+    for ((i, size, inputPaths) <- inputPathsGroup) {
+      println(i, size)
+      println(inputPaths)
+      mergeFiles(dirPath, i, inputPaths, fs)
     }
 
     val paths = fs.listFiles(dirPath, false).toIter.map(_.getPath).filterNot(x => x.getName.startsWith("_") || x.getName.startsWith(".")).toBuffer
