@@ -14,6 +14,8 @@
         <scala.binary.version>2.11</scala.binary.version>
         <scala.version>2.11.12</scala.version>
         <log4j.version>2.17.1</log4j.version>
+        <!--  commons-httpclient/commons-httpclient-->
+        <httpclient.classic.version>3.1</httpclient.classic.version>
         <libs.online.scope>provided</libs.online.scope>
     </properties>
 
@@ -309,6 +311,12 @@
             <artifactId>commons-codec</artifactId>
             <version>1.14</version>
             <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>commons-httpclient</groupId>
+            <artifactId>commons-httpclient</artifactId>
+            <version>${httpclient.classic.version}</version>
         </dependency>
 
         <!--<dependency>
