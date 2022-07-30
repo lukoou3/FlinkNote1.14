@@ -26,6 +26,16 @@ class TypeInformationSuite extends AnyFunSuite {
     println(pojoTypeInformation.getClass)
     println(pojoTypeInformation)
   }
+  test("SeqPojoScalaBean"){
+    val pojoTypeInformation: TypeInformation[Seq[ScalaBean2]] = getTypeInformation[Seq[ScalaBean2]]()
+    println(pojoTypeInformation.getClass)
+    println(pojoTypeInformation)
+
+    val pojoTypeInformation2: TypeInformation[java.util.List[ScalaBean2]] = getTypeInformation[java.util.List[ScalaBean2]]()
+    println(pojoTypeInformation2.getClass)
+    println(pojoTypeInformation2)
+  }
+
 
   test("pojoScalaBean2"){
     val pojoTypeInformation: TypeInformation[ScalaBean3] = getTypeInformation[ScalaBean3]()
