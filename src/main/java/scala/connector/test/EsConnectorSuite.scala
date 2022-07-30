@@ -29,6 +29,7 @@ class EsConnectorSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("insert") {
+    //env.setParallelism(2)
     var sql =
       """
     CREATE TABLE tmp_tb1 (
@@ -70,6 +71,7 @@ class EsConnectorSuite extends AnyFunSuite with BeforeAndAfterAll {
       'connector' = 'myes',
       'cluster-name' = 'localhost',
       'resource' = 'index_test2/type_test',
+      'sink.batch.size' = '100',
       'es.index.auto.create' = 'true',
       'es.mapping.id' = '_id'
     )

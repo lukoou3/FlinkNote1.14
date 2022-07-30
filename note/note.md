@@ -11,4 +11,14 @@ $ mvn archetype:generate \
     -Dversion=0.1 \
     -Dpackage=spendreport \
     -DinteractiveMode=false
+
+mvn archetype:generate \
+    -DarchetypeGroupId=org.apache.flink \
+    -DarchetypeArtifactId=flink-walkthrough-datastream-scala \
+    -DarchetypeVersion=1.15.1 \
+    -DgroupId=frauddetection \
+    -DartifactId=frauddetection \
+    -Dversion=0.1 \
+    -Dpackage=spendreport \
+    -DinteractiveMode=false
 ```

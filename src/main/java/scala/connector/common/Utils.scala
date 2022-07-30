@@ -52,7 +52,7 @@ object Utils {
 
     def toSinkKeyedModeKeys: Seq[String] = str.split(",").map(_.trim).filter(_.nonEmpty)
 
-    def toSinkKeyedModeOrderBy: Seq[(String, Boolean)] = str.split(",").flatMap{ text =>
+    def toSinkKeyedModeOrderBy: Seq[(String, Boolean)] = str.split(",").map(_.trim).filter(_.nonEmpty).flatMap{ text =>
       val kv = text.trim.split("""\s+""")
       if(kv.length >= 1){
         val ascending = if(kv.length < 2){

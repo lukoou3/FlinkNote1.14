@@ -112,6 +112,13 @@
 
         <dependency>
             <groupId>org.apache.flink</groupId>
+            <artifactId>flink-connector-elasticsearch6_2.11</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+
+
+        <dependency>
+            <groupId>org.apache.flink</groupId>
             <artifactId>flink-connector-hbase-base_${scala.binary.version}</artifactId>
             <version>${flink.version}</version>
             <exclusions>

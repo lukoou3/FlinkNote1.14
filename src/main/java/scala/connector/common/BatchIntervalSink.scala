@@ -4,12 +4,14 @@ import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.{ScheduledExecutorService, ScheduledFuture, TimeUnit}
 
 import org.apache.flink.configuration.Configuration
+import org.apache.flink.metrics.Counter
 import org.apache.flink.runtime.state.{FunctionInitializationContext, FunctionSnapshotContext}
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction
 import org.apache.flink.streaming.api.functions.sink.{RichSinkFunction, SinkFunction}
 
 import scala.collection.Iterable
 import scala.collection.mutable.{ArrayBuffer, LinkedHashMap}
+import scala.log.Logging
 import scala.util.ThreadUtils
 
 /**
@@ -24,7 +26,7 @@ abstract class BatchIntervalSink[T](
   val batchIntervalMs: Long,
   val minPauseBetweenFlushMs: Long = 100L,
   val keyedMode: Boolean = false
-) extends RichSinkFunction[T] with CheckpointedFunction{
+) extends RichSinkFunction[T] with CheckpointedFunction with Logging{
   @transient private var closed = false
   @transient private var scheduler: ScheduledExecutorService = _
   @transient private var scheduledFuture: ScheduledFuture[_] = _
@@ -33,6 +35,10 @@ abstract class BatchIntervalSink[T](
   @transient private var keyedBatch: LinkedHashMap[Any, T] = _
   @transient private var flushException: Exception = _
   @transient private var lastFlushTs = 0L
+  @transient private var writeCount = 0L
+  @transient private var writeBytes = 0L
+  @transient private var numBytesOutCounter: Counter = _
+  @transient private var numRecordsOutCounter: Counter = _
 
   def onInit(parameters: Configuration): Unit
 
@@ -46,8 +52,13 @@ abstract class BatchIntervalSink[T](
 
   def replaceValue(newValue:T, oldValue:T): T = newValue
 
+  override def logName = classOf[BatchIntervalSink[_]].getName
+
   override final def open(parameters: Configuration): Unit = {
     onInit(parameters)
+    numBytesOutCounter = getRuntimeContext().getMetricGroup().getIOMetricGroup.getNumBytesOutCounter
+    numRecordsOutCounter = getRuntimeContext().getMetricGroup().getIOMetricGroup.getNumRecordsOutCounter
+
     lock = new ReentrantLock()
     if(!keyedMode){
       batch = new ArrayBuffer[T]
@@ -112,6 +123,11 @@ abstract class BatchIntervalSink[T](
     }
   }
 
+  final def incNumBytesOut(bytes: Long): Unit = {
+    writeBytes += bytes
+    numBytesOutCounter.inc(bytes)
+  }
+
   final def flush(): Unit = {
     checkFlushException()
     lastFlushTs = System.currentTimeMillis()
@@ -122,11 +138,17 @@ abstract class BatchIntervalSink[T](
     try {
       if(!keyedMode){
         onFlush(batch)
+        writeCount += currentBatchCount
+        numRecordsOutCounter.inc(currentBatchCount)
         batch.clear()
       }else{
         onFlush(keyedBatch.values)
+        writeCount += currentBatchCount
+        numRecordsOutCounter.inc(currentBatchCount)
         keyedBatch.clear()
       }
+
+      logWarning(s"writeCount:$writeCount,writeBytes:$writeBytes")
     } finally {
       lock.unlock()
     }

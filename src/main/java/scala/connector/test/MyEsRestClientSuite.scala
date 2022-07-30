@@ -47,4 +47,15 @@ class MyEsRestClientSuite extends AnyFunSuite{
     println(JSON.toJSONString(obj,true))
   }
 
+  test("_delete_by_query2"){
+    val query = """{"query": {"bool": {"must": [{"range": {"title": {"lt": "|"}}}]}}}"""
+    val rst = client.post("index_test2/type_test/_delete_by_query", query){ case (code, rst) =>
+      println("code", code)
+      rst
+    }
+    val obj = JSON.parseObject(rst, classOf[util.Map[_,_]])
+    println(obj)
+    println(JSON.toJSONString(obj,true))
+  }
+
 }
