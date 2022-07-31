@@ -9,13 +9,14 @@ import org.apache.flink.table.data.{GenericRowData, RowData}
 import org.apache.flink.table.functions.{FunctionContext, TableFunction}
 import org.apache.flink.table.types.DataType
 import org.apache.flink.table.types.logical.LogicalTypeRoot._
-import org.apache.hadoop.fs.{FileSystem, LocatedFileStatus, Path}
+import org.apache.hadoop.fs.Path
+import org.apache.orc
 import org.apache.orc.{OrcFile, Reader, TypeDescription}
 
 import scala.annotation.varargs
 import scala.io.Source
 import scala.log.Logging
-import scala.util.{LoadIntervalDataUtil, SingleValueMap}
+import scala.util.{LoadIntervalDataUtil, SingleValueMap, Utils}
 import scala.util.SingleValueMap.ResourceData
 import scala.collection.JavaConverters._
 
@@ -32,6 +33,7 @@ class FileSystemRowDataLookupFunction(
   @transient var cache: ResourceData[LoadIntervalDataUtil[CacheMap]] = null
   @transient var keyFieldGetters: Array[RowData.FieldGetter] = null
   @transient var lookupKey: GenericRowData = null
+  @transient lazy val fs = new Path(path).getFileSystem(new org.apache.hadoop.conf.Configuration())
 
   override def open(context: FunctionContext): Unit = {
     keyFieldGetters = keyIndices.map(i => RowData.createFieldGetter(fieldInfos(i)._2.getLogicalType, i))
@@ -58,47 +60,44 @@ class FileSystemRowDataLookupFunction(
     }
   }
 
-  def getFsPath: Path = {
-    logWarning("a" * 5)
-    val fs = FileSystem.get(new org.apache.hadoop.conf.Configuration)
-    logWarning("b" * 5)
+  def getFsPaths: Seq[Path] = {
     val fsPath = new Path(path)
+
     if(!fs.exists(fsPath)){
       throw new Exception("文件不存在：" + path)
     }
-    logWarning("c" * 6)
 
     if(fs.isFile(fsPath)){
-      fsPath
+      List(fsPath)
     }else{
-      val files = fs.listFiles(fsPath, false).toIter.map(_.getPath).filterNot(x => x.getName.startsWith("_") || x.getName.startsWith(".")).toArray
-      logWarning("d" * 5)
-      assert(files.length == 1, "只支持输入单个文件")
-      files(0)
+      val files = fs.listFiles(fsPath, false).toIter.map(_.getPath).filterNot(x => x.getName.startsWith("_") || x.getName.startsWith(".")).toSeq
+      logWarning(s"输入文件个数：${files.length}")
+      files
     }
   }
+
 
   def fetchDatasFromTextFile(): CacheMap = {
     val cacheMap = new util.HashMap[RowData, List[RowData]]()
 
-    val fs = FileSystem.get(new org.apache.hadoop.conf.Configuration)
-    val fsPath = getFsPath
-
-    val inputStream = fs.open(fsPath)
-
+    val fsPaths = getFsPaths
     var count = 0
-    for (line <- Source.fromInputStream(inputStream, "utf-8").getLines().filter(_.trim != "")) {
-      val lineByte = line.getBytes(StandardCharsets.UTF_8)
-      val row = deserializer.deserialize(lineByte)
-      putRowToCache(row, cacheMap)
-      count += 1
-      if(count > cacheMaxSize){
-        throw new Exception(s"count:$count is greater than cacheMaxSize:$cacheMaxSize")
+
+    for (fsPath <- fsPaths) {
+      Utils.tryWithResource(fs.open(fsPath)){ inputStream =>
+        for (line <- Source.fromInputStream(inputStream, "utf-8").getLines().filter(_.trim != "")) {
+          val lineByte = line.getBytes(StandardCharsets.UTF_8)
+          val row = deserializer.deserialize(lineByte)
+          putRowToCache(row, cacheMap)
+          count += 1
+          if(count > cacheMaxSize){
+            throw new Exception(s"count:$count is greater than cacheMaxSize:$cacheMaxSize")
+          }
+        }
       }
     }
-    logWarning(s"load $count rows from $path")
 
-    inputStream.close()
+    logWarning(s"load $count rows from $path")
 
     cacheMap
   }
@@ -116,27 +115,8 @@ class FileSystemRowDataLookupFunction(
   def fetchDatasFromOrcFile(): CacheMap = {
     val cacheMap = new util.HashMap[RowData, List[RowData]]()
 
-    logWarning("1" * 5)
     val capacity = 2048
-    val fsPath = getFsPath
-    logWarning("2" * 5)
-    val conf = new org.apache.hadoop.conf.Configuration
-    val reader = OrcFile.createReader(fsPath, OrcFile.readerOptions(conf))
-    logWarning("3" * 5)
-
-    val requestedIds = requestedColumnIds(fieldInfos, reader).get
-    val options = reader.options().include(parseInclude(reader.getSchema, requestedIds.mkString(",")))
-    val recordReader = reader.rows(options)
-    val schema = reader.getSchema
-    logWarning("4" * 5)
-
-    val batch = reader.getSchema.createRowBatch(capacity)
-
-    val orcVectorWrappers = requestedIds.zipWithIndex.map{ case(idx, i) =>
-      //val typ = schema.getChildren.get(idx)
-      val col = batch.cols(idx)
-      new OrcColumnVector(fieldInfos(i)._2, col)
-    }.toArray
+    val fsPaths = getFsPaths
 
     val getters = fieldInfos.zipWithIndex.map { case ((_, dataType), i) =>
       val func: (OrcColumnVector, Int) => Any = dataType.getLogicalType.getTypeRoot match {
@@ -151,29 +131,57 @@ class FileSystemRowDataLookupFunction(
     }.toArray
 
     var count = 0
-    while (recordReader.nextBatch(batch)) {
-      var i = 0
-      while (i < batch.size){
-        var j = 0
 
-        val row = new GenericRowData(getters.length)
-        while (j < getters.length){
-          val vector = orcVectorWrappers(j)
-          if(!vector.isNullAt(i)){
-            row.setField(j, getters(j)(vector, i))
+    for (fsPath <- fsPaths) {
+      val conf = new org.apache.hadoop.conf.Configuration
+      var reader: Reader = null
+      var recordReader: orc.RecordReader = null
+
+      try {
+        reader = OrcFile.createReader(fsPath, OrcFile.readerOptions(conf))
+
+        val requestedIds = requestedColumnIds(fieldInfos, reader).get
+        val options = reader.options().include(parseInclude(reader.getSchema, requestedIds.mkString(",")))
+        recordReader = reader.rows(options)
+
+        val batch = reader.getSchema.createRowBatch(capacity)
+
+        val orcVectorWrappers = requestedIds.zipWithIndex.map { case (idx, i) =>
+          //val typ = schema.getChildren.get(idx)
+          val col = batch.cols(idx)
+          new OrcColumnVector(fieldInfos(i)._2, col)
+        }.toArray
+
+        while (recordReader.nextBatch(batch)) {
+          var i = 0
+          while (i < batch.size) {
+            var j = 0
+
+            val row = new GenericRowData(getters.length)
+            while (j < getters.length) {
+              val vector = orcVectorWrappers(j)
+              if (!vector.isNullAt(i)) {
+                row.setField(j, getters(j)(vector, i))
+              }
+              j += 1
+            }
+
+            putRowToCache(row, cacheMap)
+            count += 1
+            if (count > cacheMaxSize) {
+              throw new Exception(s"count:$count is greater than cacheMaxSize:$cacheMaxSize")
+            }
+
+            i += 1
           }
-          j += 1
         }
-
-        putRowToCache(row, cacheMap)
-        count += 1
-        if(count > cacheMaxSize){
-          throw new Exception(s"count:$count is greater than cacheMaxSize:$cacheMaxSize")
-        }
-
-        i += 1
+      } finally{
+        recordReader.close()
+        reader.close()
       }
+
     }
+
     logWarning(s"load $count rows from $path")
 
     cacheMap

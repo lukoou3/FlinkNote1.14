@@ -1,8 +1,10 @@
 package scala.stream.func
 
-import org.apache.flink.api.common.functions.{FlatMapFunction, MapFunction}
+import org.apache.flink.api.common.functions.util.FunctionUtils
+import org.apache.flink.api.common.functions.{FlatMapFunction, MapFunction, RichFlatMapFunction}
 import org.apache.flink.api.common.state.{ListState, ListStateDescriptor}
 import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.configuration.Configuration
 import org.apache.flink.runtime.state.{StateInitializationContext, StateSnapshotContext}
 import org.apache.flink.streaming.api.operators.{AbstractStreamOperator, ChainingStrategy, OneInputStreamOperator, TimestampedCollector}
 import org.apache.flink.streaming.api.scala.{DataStream, createTypeInformation}
@@ -21,7 +23,8 @@ import scala.log.Logging
  * @param minPauseBetweenFlushMs  定时器Flush和上次Flush最小间隔
  * @param useState                使用状态(默认为true), 会校验必须开启cp, 不使用状态会丢数据
  * @param isChainHead             ChainingStrategy.HEAD(默认为true)
- * @param flatMapper              处理元素输出到下游, 输入的batch seq是同一个对象, 下游不能缓存batch seq
+ * @param flatMapper              处理元素输出到下游, 输入的batch seq是同一个对象, 下游不能缓存batch seq。
+ *                                支持rich func的open和close, 不支持状态。
  * @tparam T
  * @tparam O
  */
@@ -58,6 +61,9 @@ class BatchIntervalFlatMapOperator[T: TypeInformation, O] private(
     if(batch.nonEmpty){
       logWarning(s"open batch: ${batch.size}: ${batch}")
     }
+
+    FunctionUtils.openFunction(flatMapper, new Configuration)
+
     val currentTime = getProcessingTimeService().getCurrentProcessingTime
     getProcessingTimeService().registerTimer(currentTime + batchIntervalMs, this)
   }
@@ -95,14 +101,17 @@ class BatchIntervalFlatMapOperator[T: TypeInformation, O] private(
   }
 
   final def flush(): Unit = synchronized {
-    lastFlushTs = System.currentTimeMillis()
-    flatMapper.flatMap(batch, collector)
-    batch.clear()
+    if(hasTimestamp){
+      lastFlushTs = System.currentTimeMillis()
+      flatMapper.flatMap(batch, collector)
+      batch.clear()
+    }
   }
 
 
   override def close(): Unit = {
     logWarning("BatchIntervalOperator close...")
+    FunctionUtils.closeFunction(FlatMapFunction)
     //会先调用sink的close
     /*if(batch.nonEmpty){
       flush()
