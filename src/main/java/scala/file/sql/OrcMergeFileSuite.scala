@@ -87,6 +87,13 @@ class OrcMergeFileSuite extends AnyFunSuite{
     }
   }
 
+  test("read_ord_sink"){
+    val fs = FileSystem.get(new Configuration())
+    val fsPath = new Path("file:///F:/flink-fileSink/filesystem/2022-07-31--22")
+    val paths = fs.listFiles(fsPath, false).toIter.map(_.getPath).filterNot(x => x.getName.startsWith("_") || x.getName.startsWith(".")).toBuffer
+    readFile(paths)
+  }
+
   def readFile(path:Path): Unit ={
     val capacity = 1024
     // initialize

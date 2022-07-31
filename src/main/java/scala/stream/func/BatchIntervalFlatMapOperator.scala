@@ -111,7 +111,7 @@ class BatchIntervalFlatMapOperator[T: TypeInformation, O] private(
 
   override def close(): Unit = {
     logWarning("BatchIntervalOperator close...")
-    FunctionUtils.closeFunction(FlatMapFunction)
+    FunctionUtils.closeFunction(flatMapper)
     //会先调用sink的close
     /*if(batch.nonEmpty){
       flush()
