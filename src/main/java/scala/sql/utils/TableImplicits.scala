@@ -5,18 +5,21 @@ import java.util
 import com.alibaba.fastjson.JSON
 import org.apache.flink.api.common.functions.{FlatMapFunction, RichMapFunction}
 import org.apache.flink.api.common.serialization.SerializationSchema
-import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.common.typeinfo.{BasicTypeInfo, PrimitiveArrayTypeInfo, TypeInformation}
 import org.apache.flink.api.scala.typeutils.CaseClassTypeInfo
 import org.apache.flink.formats.common.TimestampFormat
-import org.apache.flink.formats.json.{JsonFormatOptions, JsonRowDataSerializationSchema, JsonRowSerializationSchema}
+import org.apache.flink.formats.json.{JsonFormatOptions, JsonRowDataDeserializationSchema, JsonRowDataSerializationSchema, JsonRowSerializationSchema}
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.table.api.{Expressions, Schema, Table}
 import org.apache.flink.table.api.bridge.scala._
+import org.apache.flink.table.api.bridge.scala.internal.StreamTableEnvironmentImpl
 import org.apache.flink.table.api.internal.TableImpl
 import org.apache.flink.table.data.RowData
 import org.apache.flink.table.expressions.Expression
 import org.apache.flink.table.runtime.types.TypeInfoDataTypeConverter
-import org.apache.flink.table.types.logical.LogicalTypeRoot.{BIGINT, CHAR, DOUBLE, FLOAT, INTEGER, VARCHAR}
+import org.apache.flink.table.runtime.typeutils.{ExternalTypeInfo, InternalTypeInfo}
+import org.apache.flink.table.types.DataType
+import org.apache.flink.table.types.logical.LogicalTypeRoot.{BIGINT, CHAR, DOUBLE, FLOAT, INTEGER, ROW, VARCHAR}
 import org.apache.flink.table.types.logical.RowType
 import org.apache.flink.types.{Row, RowKind}
 import org.apache.flink.util.Collector
@@ -24,6 +27,7 @@ import org.apache.flink.util.Collector
 import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
 import scala.serialization.SerializationSchemaLogWrapper
+import scala.stream.func.DeserializeFunc
 
 object TableImplicits {
 
@@ -107,11 +111,52 @@ object TableImplicits {
   }
 
   implicit class StreamTableEnvOps(tEnv: StreamTableEnvironment) {
+    def createDataType(schema: String, internal:Boolean = false): DataType ={
+      val dType = tEnv.asInstanceOf[StreamTableEnvironmentImpl].getCatalogManager.getDataTypeFactory.createDataType(schema)
+      if(!internal){
+        dType
+      }else{
+        val clazz = dType.getLogicalType.getTypeRoot match {
+          case ROW => classOf[RowData]
+          case _ => throw new UnsupportedOperationException(s"unsupported data type ${dType.getLogicalType.getTypeRoot}")
+        }
+        dType.bridgedTo(clazz)
+      }
+    }
+
     def createTemporaryViewFromProductDs[T <: Product](name: String, ds: DataStream[T], useProctime: Boolean = true, proctimeName: Option[String] = None): Unit = {
-      if (useProctime) {
+      if (!useProctime) {
         tEnv.createTemporaryView(name, ds)
       } else {
         tEnv.createTemporaryView(name, ds,
+          Schema.newBuilder()
+            .columnByExpression(proctimeName.getOrElse("proctime"), "PROCTIME()")
+            .build()
+        )
+      }
+    }
+  }
+
+  implicit class DataStreamTableOps[T](ds: DataStream[T]) {
+    def createTemporaryViewUseJsonFormat(tEnv: StreamTableEnvironment, path: String, schema: String,
+      failOnMissingField:Boolean = false, ignoreParseErrors:Boolean = true,
+      useProctime: Boolean = true, proctimeName: Option[String] = None): Unit = {
+      // 这里判断，应用编译阶段就能发现类型不匹配的
+      assert(ds.dataType eq PrimitiveArrayTypeInfo.BYTE_PRIMITIVE_ARRAY_TYPE_INFO)
+
+      val dataType = tEnv.createDataType(schema, true)
+      assert(dataType.getLogicalType.isInstanceOf[RowType], "schema必须是row类型")
+
+      val rowType = dataType.getLogicalType.asInstanceOf[RowType]
+      val rowDataTypeInfo = InternalTypeInfo.of[RowData](dataType.getLogicalType) // ExternalTypeInfo.of(dataType)
+
+      val deserializer = new JsonRowDataDeserializationSchema(rowType, rowDataTypeInfo, failOnMissingField, ignoreParseErrors, TimestampFormat.SQL)
+      val rowDS: DataStream[RowData] = ds.asInstanceOf[DataStream[Array[Byte]]].map(new DeserializeFunc(deserializer))(rowDataTypeInfo)
+
+      if (!useProctime) {
+        tEnv.createTemporaryView(path, rowDS)
+      } else {
+        tEnv.createTemporaryView(path, rowDS,
           Schema.newBuilder()
             .columnByExpression(proctimeName.getOrElse("proctime"), "PROCTIME()")
             .build()

@@ -969,6 +969,8 @@ object SqlDateTypesSuite {
   //case class TableCaseData(name: String, age: Integer, cnt: java.lang.Long, data: TableCaseSubData, datas:java.util.List[TableCaseSubData])
   //case class TableCaseData(name: String, age: Integer, cnt: java.lang.Long, data: TableCaseSubData, datas:Array[TableCaseSubData])
 
-  case class TableCaseData(name: String, age: Int, cnt: java.lang.Long, data: TableCaseSubData, datas: Array[TableCaseSubData])
+  case class TableCaseData(name: String, age: Int, cnt: java.lang.Long, data: TableCaseSubData, datas: Array[TableCaseSubData]){
+    println(111)
+  }
 
 }

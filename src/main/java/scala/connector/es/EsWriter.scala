@@ -15,6 +15,10 @@ import org.elasticsearch.spark.serialization.{ScalaMapFieldExtractor, ScalaValue
 
 import scala.collection.JavaConverters._
 
+/**
+ *
+ * https://www.elastic.co/guide/en/elasticsearch/hadoop/8.4/spark.html
+ */
 class EsWriter[T](val cfg: Map[String, String]) extends Serializable {
   @transient protected lazy val log: Log = LogFactory.getLog(this.getClass)
 
