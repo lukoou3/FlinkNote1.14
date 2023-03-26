@@ -26,7 +26,7 @@
 # is only used in Standalone mode and may be overwritten on the JobManager side
 # by specifying the --host <hostname> parameter of the bin/jobmanager.sh executable.
 # In high availability mode, if you use the bin/start-cluster.sh script and setup
-# the conf/masters file, this will be taken care of automatically. Yarn/Mesos
+# the conf/masters file, this will be taken care of automatically. Yarn
 # automatically configure the host name based on the hostname of the node where the
 # JobManager runs.
 
@@ -64,16 +64,22 @@ taskmanager.numberOfTaskSlots: 4
 taskmanager.memory.task.heap.size: 2048m
 taskmanager.memory.managed.size: 1024m
 taskmanager.memory.network.max: 64m
+taskmanager.memory.network.min: 64m
+taskmanager.memory.framework.heap.size: 128m
+taskmanager.memory.framework.off-heap.size: 128m
+
+taskmanager.memory.jvm-metaspace.size: 256m
+taskmanager.memory.jvm-overhead.max: 256m
+taskmanager.memory.jvm-overhead.min: 256m
+
+taskmanager.memory.task.off-heap.size: 0m
+
 # The parallelism used for programs that did not specify and other parallelism.
 
 parallelism.default: 1
 
-akka.ask.timeout: 200s
-heartbeat.timeout: 300000
-web.tmpdir: D:\java-apps\flink-1.12.2\iotmp
-
 # The default file system scheme and authority.
-# 
+#
 # By default file paths without scheme are interpreted relative to the local
 # root file system 'file:///'. Use this to override the default and interpret
 # relative paths relative to a different file system,
@@ -92,9 +98,9 @@ web.tmpdir: D:\java-apps\flink-1.12.2\iotmp
 # The path where metadata for master recovery is persisted. While ZooKeeper stores
 # the small ground truth for checkpoint and leader election, this location stores
 # the larger objects, like persisted dataflow graphs.
-# 
+#
 # Must be a durable file system that is accessible from all nodes
-# (like HDFS, S3, Ceph, nfs, ...) 
+# (like HDFS, S3, Ceph, nfs, ...)
 #
 # high-availability.storageDir: hdfs:///flink/ha/
 
@@ -116,7 +122,18 @@ web.tmpdir: D:\java-apps\flink-1.12.2\iotmp
 #==============================================================================
 
 # The backend that will be used to store operator state checkpoints if
-# checkpointing is enabled.
+# checkpointing is enabled. Checkpointing is enabled when execution.checkpointing.interval > 0.
+#
+# Execution checkpointing related parameters. Please refer to CheckpointConfig and ExecutionCheckpointingOptions for more details.
+#
+# execution.checkpointing.interval: 3min
+# execution.checkpointing.externalized-checkpoint-retention: [DELETE_ON_CANCELLATION, RETAIN_ON_CANCELLATION]
+# execution.checkpointing.max-concurrent-checkpoints: 1
+# execution.checkpointing.min-pause: 0
+# execution.checkpointing.mode: [EXACTLY_ONCE, AT_LEAST_ONCE]
+# execution.checkpointing.timeout: 10min
+# execution.checkpointing.tolerable-failed-checkpoints: 0
+# execution.checkpointing.unaligned: false
 #
 # Supported backends are 'jobmanager', 'filesystem', 'rocksdb', or the
 # <class-name-of-factory>.
@@ -133,7 +150,7 @@ web.tmpdir: D:\java-apps\flink-1.12.2\iotmp
 # state.savepoints.dir: hdfs://namenode-host:port/flink-savepoints
 
 # Flag to enable/disable incremental checkpoints for backends that
-# support incremental checkpoints (like the RocksDB state backend). 
+# support incremental checkpoints (like the RocksDB state backend).
 #
 # state.backend.incremental: false
 
@@ -159,6 +176,7 @@ jobmanager.execution.failover-strategy: region
 # Port range for the REST and web server to bind to.
 #
 #rest.bind-port: 8080-8090
+rest.bind-port: 8081-8090
 
 # The address that the REST & web server binds to
 #
@@ -169,6 +187,11 @@ jobmanager.execution.failover-strategy: region
 
 #web.submit.enable: false
 
+# Flag to specify whether job cancellation is enabled from the web-based
+# runtime monitor. Uncomment to disable.
+
+#web.cancel.enable: false
+
 #==============================================================================
 # Advanced
 #==============================================================================
@@ -176,7 +199,7 @@ jobmanager.execution.failover-strategy: region
 # Override the directories for temporary files. If not specified, the
 # system-specific Java temporary directory (java.io.tmpdir property) is taken.
 #
-# For framework setups on Yarn or Mesos, Flink will automatically pick up the
+# For framework setups on Yarn, Flink will automatically pick up the
 # containers' temp directories without any need for configuration.
 #
 # Add a delimited list for multiple directories, using the system directory
@@ -189,6 +212,8 @@ jobmanager.execution.failover-strategy: region
 # high-throughput RAIDs.
 #
 # io.tmp.dirs: /tmp
+
+web.tmpdir: D:\java-apps\flink-1.12.2\iotmp
 
 # The classloading resolve order. Possible values are 'child-first' (Flink's default)
 # and 'parent-first' (Java's default).

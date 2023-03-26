@@ -50,9 +50,9 @@ class LocalFileSourceFunction[T](
       }
 
       cycles += 1
-      if(cycles < cycleNum && rows < numberOfRowsForSubtask){
+      /*if(cycles < cycleNum && rows < numberOfRowsForSubtask){
         Thread.sleep(100000)
-      }
+      }*/
     }
   }
 
