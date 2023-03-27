@@ -26,7 +26,10 @@ public class FastJson2JavaBeanDeserialization<T>{
     private long[] names2;
     private LongIntHashMap names3;
     private ValueConverter[] fieldConverters;
+    private Field[] fields;
+    private Class[] returnTypes;
     private ValueSetter[] fieldSetters;
+    private ValueSetter[] fieldSetters2;
     private Object[] fieldDefaultValues;
     private boolean[] fieldHasValues;
     private T data;
@@ -48,11 +51,14 @@ public class FastJson2JavaBeanDeserialization<T>{
                 .build();
         PropertyDescriptor[] properties = getJavaBeanReadableAndWritableProperties(clazz);
         names = new HashMap<>();
-        names3 = new LongIntHashMap();
+        names3 = new LongIntHashMap(properties.length + properties.length);
         names2 = new long[properties.length];
         fieldConverters = new ValueConverter[properties.length];
         fieldDefaultValues = new Object[properties.length];
+        fields = new Field[properties.length];
+        returnTypes = new Class[properties.length];
         fieldSetters = new ValueSetter[properties.length];
+        fieldSetters2 = new ValueSetter[properties.length];
         for (int i = 0; i < properties.length; i++) {
             //names.put(properties[i].getName(), i);
             names.put(Fnv.hashCode64(properties[i].getName()), i);
@@ -62,7 +68,10 @@ public class FastJson2JavaBeanDeserialization<T>{
             fieldDefaultValues[i] = fieldDefaultValue(properties[i]);
             Field field = clazz.getDeclaredField(properties[i].getName());
             field.setAccessible(true);
+            fields[i] = field;
+            returnTypes[i] = properties[i].getReadMethod().getReturnType();
             fieldSetters[i] = field::set;
+            fieldSetters2[i] = properties[i].getWriteMethod()::invoke;
         }
         fieldHasValues = new boolean[properties.length];
         if (objectReuse) {
@@ -111,20 +120,44 @@ public class FastJson2JavaBeanDeserialization<T>{
                 int index = names3.get(jsonField);
                 if (index != 0) {
                     fieldHasValues[index] = true;
-                    fieldSetters[index].set(data, fieldConverters[index].convert(reader));
+                    //fieldConverters[index].convert(reader);
+                    //fieldSetters[index].set(data, fieldConverters[index].convert(reader));
+                    //fields[index].set(data, fieldConverters[index].convert(reader));
+                    //reader.readString();
+                    //reader.skipValue();
+                    Class returnType = returnTypes[index];
+                    Object value;
+                    if(returnType == String.class){
+                        value = reader.readString();
+                    } else if (returnType == Integer.TYPE || returnType == Integer.class){
+                        value = reader.readInt32();
+                    } else if (returnType == Long.TYPE || returnType == Long.class){
+                        value = reader.readInt64();
+                    } else if (returnType == Float.TYPE || returnType == Float.class){
+                        value = reader.readFloat();
+                    } else if (returnType == Double.TYPE || returnType == Double.class){
+                        value = reader.readDouble();
+                    }else{
+                        throw new UnsupportedOperationException("Unsupported type: " + returnType);
+                    }
+                    fields[index].set(data, value);
+
+                    //fieldSetters2[index].set(data, fieldConverters[index].convert(reader));
                 }else{
                     reader.skipValue();
                 }
 
             }
 
-            if(objectReuse){
+            /*if(objectReuse){
                 for (int i = 0; i < fieldHasValues.length; i++) {
                     if(!fieldHasValues[i]){
-                        fieldSetters[i].set(data, fieldDefaultValues[i]);
+                        //fieldSetters[i].set(data, fieldDefaultValues[i]);
+                        fields[i].set(data, fieldDefaultValues[i]);
+                        //fieldSetters2[i].set(data, fieldDefaultValues[i]);
                     }
                 }
-            }
+            }*/
 
         }
 

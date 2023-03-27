@@ -621,7 +621,8 @@ class JsonFormatSuite extends AnyFunSuite with BeforeAndAfterAll {
         ds.map(new RichMapFunction[Array[Byte], JavaBean] {
             var jsonDeserialization: FastJson2JavaBeanDeserialization[JavaBean] = _
 
-            override def open(parameters: Configuration): Unit = jsonDeserialization = new FastJson2JavaBeanDeserialization[JavaBean](classOf[JavaBean], true)
+            override def open(parameters: Configuration): Unit = jsonDeserialization =
+                new FastJson2JavaBeanDeserialization[JavaBean](classOf[JavaBean], true)
 
             override def map(value: Array[Byte]): JavaBean = {
                 jsonDeserialization.deserialize(value)
@@ -771,7 +772,7 @@ object JsonFormatSuite{
         @BeanProperty
         var page_param: String = _
         @BeanProperty
-        var item_id: java.lang.Long = _
+        var item_id: Long = _
         @BeanProperty
         var item_type: java.lang.Integer = _
         @BeanProperty
