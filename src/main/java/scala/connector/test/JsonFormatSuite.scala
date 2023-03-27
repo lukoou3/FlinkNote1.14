@@ -1,5 +1,6 @@
 package scala.connector.test
 
+import com.alibaba.fastjson.JSON
 import org.apache.flink.api.common.functions.RichMapFunction
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.formats.common.TimestampFormat
@@ -14,7 +15,9 @@ import org.apache.flink.table.types.logical.RowType
 import org.apache.flink.types.Row
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
-import scala.connector.format.{JsonRowDataSimpleDeserializationSchema, JsonRowDataSimpleDeserializationSchemaJava}
+import scala.beans.BeanProperty
+import scala.connector.format.{FastJson2JavaBeanDeserialization, JsonJavaBeanDeserialization, JsonRowDataSimpleDeserializationSchema, JsonRowDataSimpleDeserializationSchemaJava}
+import scala.connector.test.JsonFormatSuite.JavaBean
 import scala.util.{Random, TsUtils}
 import scala.sql.utils.TableImplicits.StreamTableEnvOps
 import scala.stream.func.DeserializeFunc
@@ -575,4 +578,206 @@ class JsonFormatSuite extends AnyFunSuite with BeforeAndAfterAll {
             }
         })
     }
+
+    test("myjson4javaBean") {
+        val ds = env.addSource(getSource()).disableChaining()
+
+        ds.map(new RichMapFunction[Array[Byte], JavaBean] {
+            var jsonDeserialization: JsonJavaBeanDeserialization[JavaBean] = _
+
+            override def open(parameters: Configuration): Unit = jsonDeserialization = new JsonJavaBeanDeserialization[JavaBean](classOf[JavaBean], true)
+
+            override def map(value: Array[Byte]): JavaBean = {
+                jsonDeserialization.deserialize(value)
+            }
+        }).addSink(new RichSinkFunction[JavaBean] {
+            var i = 0L
+            var i2 = 0L
+            var start = 0L
+            var start2 = 0L
+            override def open(parameters: Configuration): Unit = {
+                start = System.currentTimeMillis()
+                start2 = System.currentTimeMillis()
+            }
+            override def invoke(value: JavaBean, context: SinkFunction.Context): Unit = {
+                i += 1
+                i2 += 1
+                if(i % 1000000 == 0){
+                    val end = System.currentTimeMillis()
+                    val s = (end - start).toDouble / 1000
+                    val s2 = (end - start2).toDouble / 1000
+                    println(i, s, (i / s).toInt, s2, (i2 / s2).toInt,TsUtils.timestamp(System.currentTimeMillis()))
+                    println(value)
+                    start2 = end
+                    i2 = 0
+                }
+            }
+        })
+    }
+
+    test("myjson4FastJson2javaBean") {
+        val ds = env.addSource(getSource()).disableChaining()
+
+        ds.map(new RichMapFunction[Array[Byte], JavaBean] {
+            var jsonDeserialization: FastJson2JavaBeanDeserialization[JavaBean] = _
+
+            override def open(parameters: Configuration): Unit = jsonDeserialization = new FastJson2JavaBeanDeserialization[JavaBean](classOf[JavaBean], true)
+
+            override def map(value: Array[Byte]): JavaBean = {
+                jsonDeserialization.deserialize(value)
+            }
+        }).addSink(new RichSinkFunction[JavaBean] {
+            var i = 0L
+            var i2 = 0L
+            var start = 0L
+            var start2 = 0L
+            override def open(parameters: Configuration): Unit = {
+                start = System.currentTimeMillis()
+                start2 = System.currentTimeMillis()
+            }
+            override def invoke(value: JavaBean, context: SinkFunction.Context): Unit = {
+                i += 1
+                i2 += 1
+                if(i % 1000000 == 0){
+                    val end = System.currentTimeMillis()
+                    val s = (end - start).toDouble / 1000
+                    val s2 = (end - start2).toDouble / 1000
+                    println(i, s, (i / s).toInt, s2, (i2 / s2).toInt,TsUtils.timestamp(System.currentTimeMillis()))
+                    println(value)
+                    start2 = end
+                    i2 = 0
+                }
+            }
+        })
+    }
+
+    test("myjson4javaBean_fastjson") {
+        val ds = env.addSource(getSource()).disableChaining()
+
+        ds.map(new RichMapFunction[Array[Byte], JavaBean] {
+            override def map(value: Array[Byte]): JavaBean = {
+               JSON.parseObject(value, classOf[JavaBean])
+            }
+        }).addSink(new RichSinkFunction[JavaBean] {
+            var i = 0L
+            var i2 = 0L
+            var start = 0L
+            var start2 = 0L
+            override def open(parameters: Configuration): Unit = {
+                start = System.currentTimeMillis()
+                start2 = System.currentTimeMillis()
+            }
+            override def invoke(value: JavaBean, context: SinkFunction.Context): Unit = {
+                i += 1
+                i2 += 1
+                if(i % 1000000 == 0){
+                    val end = System.currentTimeMillis()
+                    val s = (end - start).toDouble / 1000
+                    val s2 = (end - start2).toDouble / 1000
+                    println(i, s, (i / s).toInt, s2, (i2 / s2).toInt,TsUtils.timestamp(System.currentTimeMillis()))
+                    println(value)
+                    start2 = end
+                    i2 = 0
+                }
+            }
+        })
+    }
+
+    test("myjson4javaBean_fastjson2") {
+        val ds = env.addSource(getSource()).disableChaining()
+
+        ds.map(new RichMapFunction[Array[Byte], JavaBean] {
+            override def map(value: Array[Byte]): JavaBean = {
+                com.alibaba.fastjson2.JSON.parseObject(value, classOf[JavaBean])
+            }
+        }).addSink(new RichSinkFunction[JavaBean] {
+            var i = 0L
+            var i2 = 0L
+            var start = 0L
+            var start2 = 0L
+            override def open(parameters: Configuration): Unit = {
+                start = System.currentTimeMillis()
+                start2 = System.currentTimeMillis()
+            }
+            override def invoke(value: JavaBean, context: SinkFunction.Context): Unit = {
+                i += 1
+                i2 += 1
+                if(i % 1000000 == 0){
+                    val end = System.currentTimeMillis()
+                    val s = (end - start).toDouble / 1000
+                    val s2 = (end - start2).toDouble / 1000
+                    println(i, s, (i / s).toInt, s2, (i2 / s2).toInt,TsUtils.timestamp(System.currentTimeMillis()))
+                    println(value)
+                    start2 = end
+                    i2 = 0
+                }
+            }
+        })
+    }
+
+    test("myjson4javaBean_fastjson22") {
+        val ds = env.addSource(getSource()).disableChaining()
+
+        ds.map(new RichMapFunction[Array[Byte], com.alibaba.fastjson2.JSONObject] {
+            override def map(value: Array[Byte]): com.alibaba.fastjson2.JSONObject = {
+                com.alibaba.fastjson2.JSON.parseObject(value)
+            }
+        }).addSink(new RichSinkFunction[com.alibaba.fastjson2.JSONObject] {
+            var i = 0L
+            var i2 = 0L
+            var start = 0L
+            var start2 = 0L
+            override def open(parameters: Configuration): Unit = {
+                start = System.currentTimeMillis()
+                start2 = System.currentTimeMillis()
+            }
+            override def invoke(value: com.alibaba.fastjson2.JSONObject, context: SinkFunction.Context): Unit = {
+                i += 1
+                i2 += 1
+                if(i % 1000000 == 0){
+                    val end = System.currentTimeMillis()
+                    val s = (end - start).toDouble / 1000
+                    val s2 = (end - start2).toDouble / 1000
+                    println(i, s, (i / s).toInt, s2, (i2 / s2).toInt,TsUtils.timestamp(System.currentTimeMillis()))
+                    println(value)
+                    start2 = end
+                    i2 = 0
+                }
+            }
+        })
+    }
+
+    test("fastjson22") {
+
+    }
+}
+
+object JsonFormatSuite{
+    class JavaBean extends Serializable {
+        @BeanProperty
+        var dt: String = _
+        @BeanProperty
+        var bs: String = _
+        @BeanProperty
+        var report_time: String = _
+        @BeanProperty
+        var browser_uniq_id: String = _
+        @BeanProperty
+        var os_plant: String = _
+        @BeanProperty
+        var page_id: String = _
+        @BeanProperty
+        var page_name: String = _
+        @BeanProperty
+        var page_param: String = _
+        @BeanProperty
+        var item_id: java.lang.Long = _
+        @BeanProperty
+        var item_type: java.lang.Integer = _
+        @BeanProperty
+        var visit_time: String = _
+
+        override def toString = s"JavaBean($dt, $bs, $report_time, $browser_uniq_id, $os_plant, $page_id, $page_name, $page_param, $item_id, $item_type, $visit_time)"
+    }
+
 }
