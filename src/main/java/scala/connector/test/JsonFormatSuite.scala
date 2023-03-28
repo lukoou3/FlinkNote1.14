@@ -622,7 +622,7 @@ class JsonFormatSuite extends AnyFunSuite with BeforeAndAfterAll {
             var jsonDeserialization: FastJson2JavaBeanDeserialization[JavaBean] = _
 
             override def open(parameters: Configuration): Unit = jsonDeserialization =
-                new FastJson2JavaBeanDeserialization[JavaBean](classOf[JavaBean], true)
+                new FastJson2JavaBeanDeserialization[JavaBean](classOf[JavaBean], false)
 
             override def map(value: Array[Byte]): JavaBean = {
                 jsonDeserialization.deserialize(value)

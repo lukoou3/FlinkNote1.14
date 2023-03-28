@@ -64,6 +64,7 @@ public class FastJson2JavaBeanDeserialization<T>{
             names.put(Fnv.hashCode64(properties[i].getName()), i);
             names2[i] = Fnv.hashCode64(properties[i].getName());
             names3.put(Fnv.hashCode64(properties[i].getName()), i);
+            System.out.println(properties[i].getName() +"," +  i);
             fieldConverters[i] = makeConverter(properties[i]);
             fieldDefaultValues[i] = fieldDefaultValue(properties[i]);
             Field field = clazz.getDeclaredField(properties[i].getName());
@@ -125,7 +126,18 @@ public class FastJson2JavaBeanDeserialization<T>{
                     //fields[index].set(data, fieldConverters[index].convert(reader));
                     //reader.readString();
                     //reader.skipValue();
-                    Class returnType = returnTypes[index];
+
+                    Object value;
+                    if(index == 3){
+                        value = reader.readInt64();
+                    }else if( index == 4){
+                        value = reader.readInt32();
+                    }else{
+                        value = reader.readString();
+                    }
+                    fields[index].set(data, value);
+
+                    /*Class returnType = returnTypes[index];
                     Object value;
                     if(returnType == String.class){
                         value = reader.readString();
@@ -140,7 +152,7 @@ public class FastJson2JavaBeanDeserialization<T>{
                     }else{
                         throw new UnsupportedOperationException("Unsupported type: " + returnType);
                     }
-                    fields[index].set(data, value);
+                    fields[index].set(data, value);*/
 
                     //fieldSetters2[index].set(data, fieldConverters[index].convert(reader));
                 }else{
