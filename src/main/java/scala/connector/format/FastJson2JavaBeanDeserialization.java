@@ -161,7 +161,7 @@ public class FastJson2JavaBeanDeserialization<T>{
 
             }
 
-            /*if(objectReuse){
+            if(objectReuse){
                 for (int i = 0; i < fieldHasValues.length; i++) {
                     if(!fieldHasValues[i]){
                         //fieldSetters[i].set(data, fieldDefaultValues[i]);
@@ -169,7 +169,7 @@ public class FastJson2JavaBeanDeserialization<T>{
                         //fieldSetters2[i].set(data, fieldDefaultValues[i]);
                     }
                 }
-            }*/
+            }
 
         }
 

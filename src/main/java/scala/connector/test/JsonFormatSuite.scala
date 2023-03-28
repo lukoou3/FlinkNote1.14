@@ -622,7 +622,7 @@ class JsonFormatSuite extends AnyFunSuite with BeforeAndAfterAll {
             var jsonDeserialization: FastJson2JavaBeanDeserialization[JavaBean] = _
 
             override def open(parameters: Configuration): Unit = jsonDeserialization =
-                new FastJson2JavaBeanDeserialization[JavaBean](classOf[JavaBean], false)
+                new FastJson2JavaBeanDeserialization[JavaBean](classOf[JavaBean], true)
 
             override def map(value: Array[Byte]): JavaBean = {
                 jsonDeserialization.deserialize(value)
@@ -733,6 +733,44 @@ class JsonFormatSuite extends AnyFunSuite with BeforeAndAfterAll {
                 start2 = System.currentTimeMillis()
             }
             override def invoke(value: com.alibaba.fastjson2.JSONObject, context: SinkFunction.Context): Unit = {
+                i += 1
+                i2 += 1
+                if(i % 1000000 == 0){
+                    val end = System.currentTimeMillis()
+                    val s = (end - start).toDouble / 1000
+                    val s2 = (end - start2).toDouble / 1000
+                    println(i, s, (i / s).toInt, s2, (i2 / s2).toInt,TsUtils.timestamp(System.currentTimeMillis()))
+                    println(value)
+                    start2 = end
+                    i2 = 0
+                }
+            }
+        })
+    }
+
+    test("myjson4javaBean_DslJson") {
+        val ds = env.addSource(getSource()).disableChaining()
+        import com.dslplatform.json.DslJson
+        import com.dslplatform.json.runtime.Settings
+
+        ds.map(new RichMapFunction[Array[Byte], JavaBean] {
+            var dj : DslJson[AnyRef] = _
+
+            override def open(parameters: Configuration): Unit = dj = new DslJson[AnyRef](Settings.withRuntime[AnyRef])
+
+            override def map(value: Array[Byte]): JavaBean = {
+                dj.deserialize(classOf[JavaBean], value, value.length)
+            }
+        }).addSink(new RichSinkFunction[JavaBean] {
+            var i = 0L
+            var i2 = 0L
+            var start = 0L
+            var start2 = 0L
+            override def open(parameters: Configuration): Unit = {
+                start = System.currentTimeMillis()
+                start2 = System.currentTimeMillis()
+            }
+            override def invoke(value: JavaBean, context: SinkFunction.Context): Unit = {
                 i += 1
                 i2 += 1
                 if(i % 1000000 == 0){
