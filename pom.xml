@@ -222,6 +222,13 @@
             <version>3.21.0-GA</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <!--<version>3.22.2</version>-->
+            <version>3.4.0</version>
+        </dependency>
+
         <!--<dependency>
             <groupId>com.github.javafaker</groupId>
             <artifactId>javafaker</artifactId>

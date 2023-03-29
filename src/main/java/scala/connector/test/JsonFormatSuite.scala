@@ -1,6 +1,8 @@
 package scala.connector.test
 
 import com.alibaba.fastjson.JSON
+import com.jsoniter.JsonIterator
+import com.jsoniter.spi.DecodingMode
 import org.apache.flink.api.common.functions.RichMapFunction
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.formats.common.TimestampFormat
@@ -18,6 +20,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import scala.beans.BeanProperty
 import scala.connector.format.{FastJson2JavaBeanDeserialization, JsonJavaBeanDeserialization, JsonRowDataSimpleDeserializationSchema, JsonRowDataSimpleDeserializationSchemaJava}
 import scala.connector.test.JsonFormatSuite.JavaBean
+import scala.sql.json.LogData
 import scala.util.{Random, TsUtils}
 import scala.sql.utils.TableImplicits.StreamTableEnvOps
 import scala.stream.func.DeserializeFunc
@@ -760,6 +763,72 @@ class JsonFormatSuite extends AnyFunSuite with BeforeAndAfterAll {
 
             override def map(value: Array[Byte]): JavaBean = {
                 dj.deserialize(classOf[JavaBean], value, value.length)
+            }
+        }).addSink(new RichSinkFunction[JavaBean] {
+            var i = 0L
+            var i2 = 0L
+            var start = 0L
+            var start2 = 0L
+            override def open(parameters: Configuration): Unit = {
+                start = System.currentTimeMillis()
+                start2 = System.currentTimeMillis()
+            }
+            override def invoke(value: JavaBean, context: SinkFunction.Context): Unit = {
+                i += 1
+                i2 += 1
+                if(i % 1000000 == 0){
+                    val end = System.currentTimeMillis()
+                    val s = (end - start).toDouble / 1000
+                    val s2 = (end - start2).toDouble / 1000
+                    println(i, s, (i / s).toInt, s2, (i2 / s2).toInt,TsUtils.timestamp(System.currentTimeMillis()))
+                    println(value)
+                    start2 = end
+                    i2 = 0
+                }
+            }
+        })
+    }
+
+    test("myjson4javaBean_jsoniter") {
+        val ds = env.addSource(getSource()).disableChaining()
+        ds.map(new RichMapFunction[Array[Byte], JavaBean] {
+            override def map(value: Array[Byte]): JavaBean = {
+                JsonIterator.deserialize(value, classOf[JavaBean])
+            }
+        }).addSink(new RichSinkFunction[JavaBean] {
+            var i = 0L
+            var i2 = 0L
+            var start = 0L
+            var start2 = 0L
+            override def open(parameters: Configuration): Unit = {
+                start = System.currentTimeMillis()
+                start2 = System.currentTimeMillis()
+            }
+            override def invoke(value: JavaBean, context: SinkFunction.Context): Unit = {
+                i += 1
+                i2 += 1
+                if(i % 1000000 == 0){
+                    val end = System.currentTimeMillis()
+                    val s = (end - start).toDouble / 1000
+                    val s2 = (end - start2).toDouble / 1000
+                    println(i, s, (i / s).toInt, s2, (i2 / s2).toInt,TsUtils.timestamp(System.currentTimeMillis()))
+                    println(value)
+                    start2 = end
+                    i2 = 0
+                }
+            }
+        })
+    }
+
+    test("myjson4javaBean_jsoniterCodegen") {
+        val ds = env.addSource(getSource()).disableChaining()
+
+        ds.map(new RichMapFunction[Array[Byte], JavaBean] {
+
+            override def open(parameters: Configuration): Unit = JsonIterator.setMode(DecodingMode.DYNAMIC_MODE_AND_MATCH_FIELD_WITH_HASH)
+
+            override def map(value: Array[Byte]): JavaBean = {
+                JsonIterator.deserialize(value, classOf[JavaBean])
             }
         }).addSink(new RichSinkFunction[JavaBean] {
             var i = 0L
