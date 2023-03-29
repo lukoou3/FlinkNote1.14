@@ -36,18 +36,10 @@ public final class LogDataProto {
       "pe\030\n \001(\005\022\022\n\nvisit_time\030\013 \001(\tB!\n\017scala.sq" +
       "l.protoB\014LogDataProtoP\001b\006proto3"
     };
-    com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
-        new com.google.protobuf.Descriptors.FileDescriptor.    InternalDescriptorAssigner() {
-          public com.google.protobuf.ExtensionRegistry assignDescriptors(
-              com.google.protobuf.Descriptors.FileDescriptor root) {
-            descriptor = root;
-            return null;
-          }
-        };
-    com.google.protobuf.Descriptors.FileDescriptor
+    descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
         new com.google.protobuf.Descriptors.FileDescriptor[] {
-        }, assigner);
+        });
     internal_static_LogData_descriptor =
       getDescriptor().getMessageTypes().get(0);
     internal_static_LogData_fieldAccessorTable = new

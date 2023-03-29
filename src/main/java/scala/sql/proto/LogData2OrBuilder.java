@@ -9,10 +9,12 @@ public interface LogData2OrBuilder extends
 
   /**
    * <code>string dt = 1;</code>
+   * @return The dt.
    */
   String getDt();
   /**
    * <code>string dt = 1;</code>
+   * @return The bytes for dt.
    */
   com.google.protobuf.ByteString
       getDtBytes();
@@ -23,6 +25,7 @@ public interface LogData2OrBuilder extends
    * </pre>
    *
    * <code>string bs = 2;</code>
+   * @return The bs.
    */
   String getBs();
   /**
@@ -31,36 +34,43 @@ public interface LogData2OrBuilder extends
    * </pre>
    *
    * <code>string bs = 2;</code>
+   * @return The bytes for bs.
    */
   com.google.protobuf.ByteString
       getBsBytes();
 
   /**
    * <code>string report_time = 3;</code>
+   * @return The reportTime.
    */
   String getReportTime();
   /**
    * <code>string report_time = 3;</code>
+   * @return The bytes for reportTime.
    */
   com.google.protobuf.ByteString
       getReportTimeBytes();
 
   /**
    * <code>int64 item_id = 9;</code>
+   * @return The itemId.
    */
   long getItemId();
 
   /**
    * <code>int32 item_type = 10;</code>
+   * @return The itemType.
    */
   int getItemType();
 
   /**
    * <code>string visit_time = 11;</code>
+   * @return The visitTime.
    */
   String getVisitTime();
   /**
    * <code>string visit_time = 11;</code>
+   * @return The bytes for visitTime.
    */
   com.google.protobuf.ByteString
       getVisitTimeBytes();

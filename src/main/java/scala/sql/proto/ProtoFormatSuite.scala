@@ -1,5 +1,6 @@
 package scala.sql.proto
 
+import com.google.protobuf.{DiscardUnknownFieldsParser, Parser}
 import org.apache.flink.api.common.functions.RichMapFunction
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.formats.common.TimestampFormat
@@ -98,11 +99,15 @@ class ProtoFormatSuite extends AnyFunSuite with BeforeAndAfterAll{
         })
     }
 
+    // 3.5之前会直接丢弃未知字段，读取少量字段时更加高效，之后需要自己配置DiscardUnknownFieldsParser
     test("proto_des2"){
         val ds = env.addSource(getSource()).disableChaining()
         ds.map(new RichMapFunction[Array[Byte], LogData2] {
+            var parser: Parser[LogData2] = _
+            override def open(parameters: Configuration): Unit = parser= DiscardUnknownFieldsParser.wrap(LogData2.parser())
+
             override def map(bytes: Array[Byte]): LogData2 = {
-                LogData2.parseFrom(bytes)
+                parser.parseFrom(bytes)
             }
         }).addSink(new RichSinkFunction[LogData2] {
             var i = 0L

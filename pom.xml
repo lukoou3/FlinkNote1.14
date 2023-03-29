@@ -225,8 +225,8 @@
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
-            <!--<version>3.22.2</version>-->
-            <version>3.4.0</version>
+            <version>3.22.2</version>
+            <!--<version>3.4.0</version>-->
         </dependency>
 
         <!--<dependency>

@@ -34,18 +34,10 @@ public final class LogData2Proto {
       "time\030\013 \001(\tJ\004\010\004\020\tB\"\n\017scala.sql.protoB\rLog" +
       "Data2ProtoP\001b\006proto3"
     };
-    com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
-        new com.google.protobuf.Descriptors.FileDescriptor.    InternalDescriptorAssigner() {
-          public com.google.protobuf.ExtensionRegistry assignDescriptors(
-              com.google.protobuf.Descriptors.FileDescriptor root) {
-            descriptor = root;
-            return null;
-          }
-        };
-    com.google.protobuf.Descriptors.FileDescriptor
+    descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
         new com.google.protobuf.Descriptors.FileDescriptor[] {
-        }, assigner);
+        });
     internal_static_LogData2_descriptor =
       getDescriptor().getMessageTypes().get(0);
     internal_static_LogData2_fieldAccessorTable = new
