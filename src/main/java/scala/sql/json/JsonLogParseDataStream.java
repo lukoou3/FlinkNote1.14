@@ -1,10 +1,10 @@
 package scala.sql.json;
 
-import com.dslplatform.json.DslJson;
-import com.dslplatform.json.runtime.Settings;
+//import com.dslplatform.json.DslJson;
+//import com.dslplatform.json.runtime.Settings;
 import com.google.gson.Gson;
-import com.jsoniter.JsonIterator;
-import com.jsoniter.spi.DecodingMode;
+//import com.jsoniter.JsonIterator;
+//import com.jsoniter.spi.DecodingMode;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.java.utils.ParameterTool;
@@ -71,7 +71,7 @@ public class JsonLogParseDataStream {
             jsonMapFunc = fastJsonMapFunc(env);
         }else if("fastJson2".equals(jsonFormat)){
             jsonMapFunc = fastJson2MapFunc(env);
-        }else if("dslJson".equals(jsonFormat)){
+        }/*else if("dslJson".equals(jsonFormat)){
             jsonMapFunc = dslJsonMapFunc(env);
         }else if("gson".equals(jsonFormat)){
             jsonMapFunc = gsonMapFunc(env);
@@ -79,7 +79,7 @@ public class JsonLogParseDataStream {
             jsonMapFunc = jsoniterMapFunc(env);
         }else if("jsoniterCodegen".equals(jsonFormat)){
             jsonMapFunc = jsoniterCodegenMapFunc(env);
-        }
+        }*/
 
         ds.map(jsonMapFunc).addSink(new RichSinkFunction<LogData>() {
             private int cnt = 0;
@@ -163,7 +163,7 @@ public class JsonLogParseDataStream {
         };
     }
 
-    public static RichMapFunction<byte[], LogData> dslJsonMapFunc(StreamExecutionEnvironment env) throws Exception {
+    /*public static RichMapFunction<byte[], LogData> dslJsonMapFunc(StreamExecutionEnvironment env) throws Exception {
         return new RichMapFunction<byte[], LogData>() {
             private DslJson<Object> dj;
 
@@ -182,7 +182,7 @@ public class JsonLogParseDataStream {
                 }
             }
         };
-    }
+    }*/
 
     public static RichMapFunction<byte[], LogData> gsonMapFunc(StreamExecutionEnvironment env) throws Exception {
         return new RichMapFunction<byte[], LogData>() {
@@ -200,7 +200,7 @@ public class JsonLogParseDataStream {
         };
     }
 
-    public static RichMapFunction<byte[], LogData> jsoniterMapFunc(StreamExecutionEnvironment env) throws Exception {
+    /*public static RichMapFunction<byte[], LogData> jsoniterMapFunc(StreamExecutionEnvironment env) throws Exception {
         return new RichMapFunction<byte[], LogData>() {
             @Override
             public LogData map(byte[] bytes) throws Exception {
@@ -221,6 +221,6 @@ public class JsonLogParseDataStream {
                 return JsonIterator.deserialize(bytes, LogData.class);
             }
         };
-    }
+    }*/
 
 }
