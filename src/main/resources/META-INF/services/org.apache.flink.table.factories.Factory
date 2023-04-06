@@ -7,3 +7,5 @@ scala.connector.filesystem.FileSystemTableFactory
 scala.connector.jdbc.JdbcTableFactory
 scala.connector.format.JsonFormatFactory
 scala.connector.format.JsonFormatFactoryJava
+com.java.connector.faker.FlinkFakerTableSourceFactory
+com.java.connector.socket.SocketDynamicTableFactory

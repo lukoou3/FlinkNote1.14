@@ -9,6 +9,7 @@ public class TestJsoniter {
 
     public static void main(String[] args) throws IOException {
         byte[] bytes = "{\"id\":\"1\", \"name\":\"罗隐\",\"text\":{\"name\": 11  , \"age\":30}, \"age\":30}".getBytes(StandardCharsets.UTF_8);
+        //bytes = "{\"id\":\"1\", \"name\":\"罗隐\",\"text\":{\"name\": 11  , \"age\":30}, \"age\":null}".getBytes(StandardCharsets.UTF_8);
         JsonIterator iter = JsonIterator.parse(bytes);
         for (String field = iter.readObject(); field != null; field = iter.readObject()) {
             switch (field) {
@@ -19,7 +20,11 @@ public class TestJsoniter {
                     System.out.println(iter.readString());
                     continue;
                 case "age":
-                    System.out.println(iter.readInt());
+                    if(iter.readNull()){
+                        System.out.println("null");
+                    }else{
+                        System.out.println(iter.readInt());
+                    }
                     continue;
                 case "text":
                     System.out.println(iter.readAny());
